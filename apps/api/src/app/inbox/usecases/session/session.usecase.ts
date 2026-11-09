@@ -144,20 +144,19 @@ export class Session {
 
     const environmentApiKeys = environment.apiKeys.map((apiKey) => apiKey.key);
 
-    if (inAppIntegration.credentials.hmac) {
-      validateHmacEncryption({
-        apiKeys: environmentApiKeys,
-        subscriberId: subscriber.subscriberId,
-        subscriberHash: command.requestData.subscriberHash,
-      });
+    // Djinn: HMAC обязателен всегда, в любом окружении и независимо от настройки интеграции.
+    validateHmacEncryption({
+      apiKeys: environmentApiKeys,
+      subscriberId: subscriber.subscriberId,
+      subscriberHash: command.requestData.subscriberHash,
+    });
 
-      if (command.requestData.context) {
-        validateContextHmacEncryption({
-          apiKeys: environmentApiKeys,
-          context: command.requestData.context,
-          contextHash: command.requestData.contextHash,
-        });
-      }
+    if (command.requestData.context) {
+      validateContextHmacEncryption({
+        apiKeys: environmentApiKeys,
+        context: command.requestData.context,
+        contextHash: command.requestData.contextHash,
+      });
     }
 
     const contextKeys = await this.resolveContexts(

@@ -49,9 +49,8 @@ export class InitializeSession {
       throw new NotFoundException('In app integration could not be found');
     }
 
-    if (inAppIntegration.credentials.hmac) {
-      validateNotificationCenterEncryption(environment, command);
-    }
+    // Djinn: HMAC обязателен всегда.
+    validateNotificationCenterEncryption(environment, command);
 
     const subscriber = await this.createOrUpdateSubscriberUsecase.execute(
       CreateOrUpdateSubscriberCommand.create({

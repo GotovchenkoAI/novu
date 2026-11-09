@@ -18,7 +18,8 @@ export class UserRegister {
   ) {}
 
   async execute(command: UserRegisterCommand) {
-    if (process.env.DISABLE_USER_REGISTRATION === 'true') throw new BadRequestException('Account creation is disabled');
+    // Djinn: регистрация закрыта, если её не открыли явно: первую учётку заводит оператор.
+    if (process.env.DISABLE_USER_REGISTRATION !== 'false') throw new BadRequestException('Account creation is disabled');
 
     const email = normalizeEmail(command.email);
     const existingUser = await this.userRepository.findByEmail(email);

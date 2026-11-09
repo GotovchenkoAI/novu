@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   AnalyticsService,
   CreateOrUpdateSubscriberUseCase,
+  createContextHash,
   createHash,
   FeatureFlagsService,
   GetSubscriberSchedule,
@@ -152,7 +153,7 @@ describe('Session', () => {
       requestData: {
         applicationIdentifier: 'app-id',
         subscriber: { subscriberId: 'subscriber-id' },
-        subscriberHash: 'hash',
+        subscriberHash: createHash('api-key', 'subscriber-id'),
       },
     };
 
@@ -189,7 +190,7 @@ describe('Session', () => {
       requestData: {
         applicationIdentifier: 'app-id',
         subscriber: { subscriberId: 'subscriber-id' },
-        subscriberHash: 'hash',
+        subscriberHash: createHash('api-key', 'subscriber-id'),
       },
     };
 
@@ -310,6 +311,25 @@ describe('Session', () => {
     validateHmacEncryptionStub.restore();
   });
 
+  it('отказывает без хэша, даже если в интеграции HMAC выключен (Djinn)', async () => {
+    environmentRepository.findEnvironmentByIdentifier.resolves({
+      _id: 'env-id',
+      _organizationId: 'org-id',
+      name: 'Development',
+      apiKeys: [{ key: 'api-key' }],
+    } as any);
+    selectIntegration.execute.resolves({ ...mockIntegration, credentials: { hmac: false } });
+
+    try {
+      await session.execute({ requestData: { applicationIdentifier: 'app', subscriber: { subscriberId: 'x' } } } as any);
+      throw new Error('должно было отказать');
+    } catch (error) {
+      expect(error).to.be.instanceOf(BadRequestException);
+      expect((error as Error).message).to.equal('Please provide a valid HMAC hash');
+    }
+    expect(createSubscriber.execute.called).to.equal(false);
+  });
+
   it('не даёт браузеру менять профиль подписчика даже с верным хэшем (Djinn)', async () => {
     const secretKey = 'mock-secret-key';
     const hash = createHash(secretKey, 'subscriber-1');
@@ -353,7 +373,7 @@ describe('Session', () => {
         subscriber: {
           subscriberId: 'subscriber-id',
         },
-        subscriberHash: 'hash',
+        subscriberHash: createHash('api-key', 'subscriber-id'),
       },
     };
     const subscriber = { _id: 'subscriber-id' };
@@ -391,7 +411,7 @@ describe('Session', () => {
         subscriber: {
           subscriberId: 'subscriber-id',
         },
-        subscriberHash: 'hash',
+        subscriberHash: createHash('api-key', 'subscriber-id'),
       },
       origin: 'origin',
     };
@@ -438,7 +458,7 @@ describe('Session', () => {
       requestData: {
         applicationIdentifier: 'app-id',
         subscriber: { subscriberId: 'subscriber-id' },
-        subscriberHash: 'hash',
+        subscriberHash: createHash('api-key', 'subscriber-id'),
       },
     };
 
@@ -486,7 +506,9 @@ describe('Session', () => {
       requestData: {
         applicationIdentifier: 'app-id',
         subscriber: { subscriberId: 'subscriber-id' },
+        subscriberHash: createHash('api-key', 'subscriber-id'),
         context: { teamId: 'team-123', projectId: 'project-456' },
+        contextHash: createContextHash('api-key', { teamId: 'team-123', projectId: 'project-456' }),
       },
     };
 
@@ -590,6 +612,7 @@ describe('Session', () => {
       requestData: {
         applicationIdentifier: 'app-id',
         subscriber: { subscriberId: 'subscriber-id' },
+        subscriberHash: createHash('api-key', 'subscriber-id'),
       },
     };
 
