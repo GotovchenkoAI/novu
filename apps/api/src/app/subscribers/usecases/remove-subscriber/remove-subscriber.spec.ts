@@ -155,6 +155,11 @@ describe('Remove Subscriber', () => {
     delete process.env.NOTIFICATION_RETENTION_DAYS;
     expect(await ttlOf('notifications')).to.equal(7 * 24 * 60 * 60);
 
+    process.env.NOTIFICATION_RETENTION_DAYS = '3650';
+    await dal.connect(process.env.MONGO_URL as string);
+    delete process.env.NOTIFICATION_RETENTION_DAYS;
+    expect(await ttlOf('notifications')).to.equal(30 * 24 * 60 * 60);
+
     await dal.connect(process.env.MONGO_URL as string);
   });
 

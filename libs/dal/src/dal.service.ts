@@ -49,10 +49,8 @@ export class DalService {
       try {
         await db?.command({ collMod: collection, index: { keyPattern: { createdAt: 1 }, expireAfterSeconds } });
       } catch {
-        await db
-          ?.collection(collection)
-          .createIndex({ createdAt: 1 }, { expireAfterSeconds })
-          .catch((err: Error) => Logger.error(`[@novu/dal]: Retention index: ${err.message}`, MONGODB_CONTEXT));
+        // Срок не применился — процесс не стартует: иначе данные вызова лягут без срока молча.
+        await db?.collection(collection).createIndex({ createdAt: 1 }, { expireAfterSeconds });
       }
     }
   }

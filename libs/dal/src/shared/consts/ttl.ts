@@ -13,8 +13,10 @@ export function getTTLOptions() {
 /** Djinn: коллекции с данными вызова. Срок задаёт NOTIFICATION_RETENTION_DAYS, по умолчанию 30 суток. */
 export const RETENTION_COLLECTIONS = ['notifications', 'jobs', 'messages', 'executiondetails', 'subscribertombstones'];
 
+const NOTIFICATION_RETENTION_MAX_DAYS = 30;
+
 export function getRetentionIndexOptions() {
   const days = Number(process.env.NOTIFICATION_RETENTION_DAYS);
 
-  return { expireAfterSeconds: (days > 0 ? days : DEFAULT_NOTIFICATION_RETENTION_DAYS) * 24 * 60 * 60 };
+  return { expireAfterSeconds: (days > 0 ? Math.min(days, NOTIFICATION_RETENTION_MAX_DAYS) : DEFAULT_NOTIFICATION_RETENTION_DAYS) * 24 * 60 * 60 };
 }
