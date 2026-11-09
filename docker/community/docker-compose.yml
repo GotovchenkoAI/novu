@@ -27,6 +27,9 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+    configs:
+      - source: mongosh_conf
+        target: /etc/mongosh.conf
     volumes:
       - mongodb:/data/db
     healthcheck:
@@ -234,3 +237,11 @@ services:
 
 volumes:
   mongodb: ~
+
+configs:
+  # Djinn: mongosh образа mongo ходит за индексом сниппетов и телеметрией
+  mongosh_conf:
+    content: |
+      mongosh:
+        enableTelemetry: false
+        snippetIndexSourceURLs: ""

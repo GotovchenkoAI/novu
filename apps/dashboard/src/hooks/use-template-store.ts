@@ -217,7 +217,8 @@ export function useTemplateStore() {
 
     const load = async () => {
       try {
-        const templatesApiUrl = import.meta.env.VITE_TEMPLATES_API_URL || 'https://templates-novuhq.vercel.app';
+        const templatesApiUrl = import.meta.env.VITE_TEMPLATES_API_URL;
+        if (!templatesApiUrl) return;
         const requestUrl = `${templatesApiUrl}/api/workflows?refresh=1`;
         const response = await fetch(requestUrl, {
           cache: 'no-store',
