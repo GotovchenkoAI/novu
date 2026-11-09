@@ -93,6 +93,35 @@ jobs:
           touch "digests/${digest#sha256:}"
           echo "${SERVICE} ${ARCH} ${digest}"
 
+      - name: Export the arm64 image for a local check
+        if: github.event_name == 'workflow_dispatch' && matrix.arch.name == 'arm64'
+        shell: bash
+        env:
+          SERVICE: ${{ matrix.service }}
+          ARCH: ${{ matrix.arch.name }}
+        run: |
+          set -eu
+          export_args=(
+            --platform linux/arm64
+            --cache-from "type=gha,scope=${SERVICE}-${ARCH}"
+            --output "type=docker,dest=image.tar,name=ghcr.io/gotovchenkoai/novu-${SERVICE}:local"
+          )
+          if [ "$SERVICE" = dashboard ]; then
+            docker buildx build "${export_args[@]}" --build-arg VITE_SELF_HOSTED=true -f apps/dashboard/dockerfile .
+          else
+            pnpm --silent --workspace-root pnpm-context -- "apps/${SERVICE}/Dockerfile" \
+              | docker buildx build "${export_args[@]}" --build-arg "PACKAGE_PATH=apps/${SERVICE}" -
+          fi
+
+      - name: Upload the arm64 image
+        if: github.event_name == 'workflow_dispatch' && matrix.arch.name == 'arm64'
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.service }}-arm64
+          path: image.tar
+          compression-level: 1
+          retention-days: 2
+
       - name: Keep the digest for the manifest job
         uses: actions/upload-artifact@v4
         with:
