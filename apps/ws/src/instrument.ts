@@ -11,8 +11,8 @@ import { name, version } from '../package.json';
 
 startOtel(name, version);
 
-// biome-ignore lint: must execute after startOtel() so New Relic layers on top
-require('newrelic');
+// Djinn: агент New Relic не включается никогда. Модуль остаётся заглушкой для вызовов в коде.
+process.env.NEW_RELIC_ENABLED = 'false';
 
 // biome-ignore lint: lazy require so @sentry/nestjs loads after OTEL instrumentations are installed
 const { init } = require('@sentry/nestjs');

@@ -6,9 +6,10 @@ class HostnameManager {
   private currentWebSocketHostname: string;
 
   constructor() {
-    // Initialize with US hostnames (default)
-    this.currentApiHostname = API_HOSTNAME ?? 'https://api.novu.co';
-    this.currentWebSocketHostname = WEBSOCKET_HOSTNAME ?? 'https://ws.novu.co';
+    // Djinn: чужого адреса по умолчанию нет, иначе вход оператора ушёл бы на api.novu.co.
+    if (!API_HOSTNAME || !WEBSOCKET_HOSTNAME) throw new Error('VITE_API_HOSTNAME and VITE_WEBSOCKET_HOSTNAME are not set');
+    this.currentApiHostname = API_HOSTNAME;
+    this.currentWebSocketHostname = WEBSOCKET_HOSTNAME;
   }
 
   setApiHostname(hostname: string) {

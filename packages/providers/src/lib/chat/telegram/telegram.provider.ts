@@ -25,7 +25,10 @@ export class TelegramChatProvider extends BaseProvider implements IChatProvider 
 
   constructor(private config: { botToken: string }) {
     super();
-    const apiBaseUrl = (process.env.TELEGRAM_API_BASE_URL ?? 'https://api.telegram.org').replace(/\/$/, '');
+    // Djinn: чужого адреса по умолчанию нет. Telegram идёт только по заданному маршруту.
+    const configured = process.env.TELEGRAM_API_BASE_URL?.trim();
+    if (!configured) throw new Error('TELEGRAM_API_BASE_URL is not set');
+    const apiBaseUrl = configured.replace(/\/$/, '');
     this.baseUrl = `${apiBaseUrl}/bot${this.config.botToken}`;
     this.axiosInstance = Axios.create({
       headers: {

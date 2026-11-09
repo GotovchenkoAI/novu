@@ -1,12 +1,20 @@
 import { ChannelEndpointByType, ENDPOINT_TYPES, IChatOptions } from '@novu/stateless';
 import { nanoid } from 'nanoid';
-import { expect, test } from 'vitest';
+import { afterEach, beforeEach, expect, test } from 'vitest';
 import { axiosSpy } from '../../../utils/test/spy-axios';
 import { TelegramChatProvider } from './telegram.provider';
 
 const mockProviderConfig = {
   botToken: 'test-bot-token-123',
 };
+
+beforeEach(() => {
+  process.env.TELEGRAM_API_BASE_URL = 'https://bridge.example/telegram/';
+});
+
+afterEach(() => {
+  delete process.env.TELEGRAM_API_BASE_URL;
+});
 
 const buildResponse = (messageId: number) => {
   return {
@@ -125,26 +133,11 @@ test('should use the bot token in the request URL', async () => {
 });
 
 function baseUrl(botToken: string) {
-  return `https://api.telegram.org/bot${botToken}/sendMessage`;
+  return `https://bridge.example/telegram/bot${botToken}/sendMessage`;
 }
 
-test('should send through TELEGRAM_API_BASE_URL when it is set', async () => {
-  process.env.TELEGRAM_API_BASE_URL = 'https://bridge.example/telegram/';
+test('без TELEGRAM_API_BASE_URL отправка отказывает: чужого адреса по умолчанию нет (Djinn)', () => {
+  delete process.env.TELEGRAM_API_BASE_URL;
 
-  try {
-    const { mockPost } = axiosSpy(buildResponse(1));
-
-    await new TelegramChatProvider(mockProviderConfig).sendMessage({
-      content: 'Hello',
-      channelData: {
-        identifier: 'chat-123',
-        type: ENDPOINT_TYPES.TELEGRAM_CHAT,
-        endpoint: { chatId: '123456789' },
-      },
-    });
-
-    expect(mockPost.mock.calls[0][0]).toBe('https://bridge.example/telegram/bottest-bot-token-123/sendMessage');
-  } finally {
-    delete process.env.TELEGRAM_API_BASE_URL;
-  }
+  expect(() => new TelegramChatProvider(mockProviderConfig)).toThrow('TELEGRAM_API_BASE_URL is not set');
 });

@@ -39,7 +39,11 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
 }
 
 export function resolveTelegramApiBaseUrl(): string {
-  return (process.env.TELEGRAM_API_BASE_URL ?? 'https://api.telegram.org').replace(/\/$/, '');
+  // Djinn: чужого адреса по умолчанию нет. Telegram идёт только по заданному маршруту.
+  const configured = process.env.TELEGRAM_API_BASE_URL?.trim();
+  if (!configured) throw new Error('TELEGRAM_API_BASE_URL is not set');
+
+  return configured.replace(/\/$/, '');
 }
 
 export function buildTelegramBotApiUrl(botToken: string, method: string): string {
@@ -47,13 +51,13 @@ export function buildTelegramBotApiUrl(botToken: string, method: string): string
 }
 
 export function buildIntegrationTelegramWebhookUrl(environmentId: string, integrationIdentifier: string): string {
-  const base = (process.env.AGENT_API_HOSTNAME ?? process.env.API_ROOT_URL ?? 'https://api.novu.co').replace(/\/$/, '');
+  const base = (process.env.AGENT_API_HOSTNAME ?? process.env.API_ROOT_URL ?? '').replace(/\/$/, '');
 
   return `${base}/v1/integrations/${integrationIdentifier}/${environmentId}/webhook`;
 }
 
 export function buildAgentTelegramWebhookUrl(agentId: string, integrationIdentifier: string): string {
-  const base = (process.env.AGENT_API_HOSTNAME ?? process.env.API_ROOT_URL ?? 'https://api.novu.co').replace(/\/$/, '');
+  const base = (process.env.AGENT_API_HOSTNAME ?? process.env.API_ROOT_URL ?? '').replace(/\/$/, '');
 
   return `${base}/v1/agents/${agentId}/webhook/${integrationIdentifier}`;
 }

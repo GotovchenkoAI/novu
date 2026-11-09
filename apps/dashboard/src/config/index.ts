@@ -27,7 +27,7 @@ export const AGENT_API_HOSTNAME = window._env_?.VITE_AGENT_API_HOSTNAME || impor
 
 /** Base URL for agent webhook/OAuth URLs shown to external providers (Slack, Teams, Meta, etc.). */
 export function getAgentApiBaseUrl(): string {
-  return (AGENT_API_HOSTNAME || API_HOSTNAME || 'https://api.novu.co').replace(/\/$/, '');
+  return (AGENT_API_HOSTNAME || API_HOSTNAME || '').replace(/\/$/, '');
 }
 
 /** Hostname portion of {@link getAgentApiBaseUrl} for manifests that require a domain only. */

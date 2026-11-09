@@ -1,28 +1,24 @@
 import { expect } from 'chai';
+import { buildTelegramBotApiUrl, resolveTelegramApiBaseUrl } from './telegram-webhook.utils';
 
-import {
-  extractTelegramChatIdFromUpdate,
-  extractTelegramMessageText,
-  extractTelegramStartToken,
-} from './telegram-webhook.utils';
+describe('Адрес Telegram (Djinn)', () => {
+  const saved = process.env.TELEGRAM_API_BASE_URL;
 
-describe('telegram-webhook.utils', () => {
-  it('extractTelegramStartToken parses /start payloads', () => {
-    expect(extractTelegramStartToken('/start abc123')).to.equal('abc123');
-    expect(extractTelegramStartToken('/start@my_bot token-here')).to.equal('token-here');
-    expect(extractTelegramStartToken('/start')).to.equal(null);
-    expect(extractTelegramStartToken('hello')).to.equal(null);
+  afterEach(() => {
+    if (saved === undefined) delete process.env.TELEGRAM_API_BASE_URL;
+    else process.env.TELEGRAM_API_BASE_URL = saved;
   });
 
-  it('extractTelegramChatIdFromUpdate reads chat.id from message updates', () => {
-    const update = {
-      message: {
-        chat: { id: 12345, type: 'private' },
-        text: '/start abc',
-      },
-    };
+  it('без переменной отказывает: чужого адреса по умолчанию нет', () => {
+    delete process.env.TELEGRAM_API_BASE_URL;
 
-    expect(extractTelegramChatIdFromUpdate(update)).to.equal('12345');
-    expect(extractTelegramMessageText(update)).to.equal('/start abc');
+    expect(() => resolveTelegramApiBaseUrl()).to.throw('TELEGRAM_API_BASE_URL is not set');
+    expect(() => buildTelegramBotApiUrl('t', 'getMe')).to.throw('TELEGRAM_API_BASE_URL is not set');
+  });
+
+  it('с переменной идёт по заданному маршруту', () => {
+    process.env.TELEGRAM_API_BASE_URL = 'https://bridge.example/telegram/';
+
+    expect(buildTelegramBotApiUrl('t', 'getMe')).to.equal('https://bridge.example/telegram/bott/getMe');
   });
 });
