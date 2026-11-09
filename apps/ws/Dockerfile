@@ -76,4 +76,7 @@ COPY --chown=1000:1000 --from=deploy /usr/src/deploy .
 # Built output (not included by pnpm deploy because dist is gitignored)
 COPY --chown=1000:1000 --from=dev /usr/src/app/apps/ws/dist ./dist
 
+# Djinn: примеры и окружение разработки в образ не едут: там публичные значения секретов.
+RUN rm -f src/.env src/.env.* src/.example.env dist/.env dist/.env.development dist/.env.agent dist/.env.test dist/.env.ci
+
 ENTRYPOINT [ "dumb-init", "--", "node", "dist/main.js" ]

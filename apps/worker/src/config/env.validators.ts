@@ -1,7 +1,9 @@
-import { DEFAULT_NOTIFICATION_RETENTION_DAYS, FeatureFlagsKeysEnum, StringifyEnv } from '@novu/shared';
+import { DEFAULT_NOTIFICATION_RETENTION_DAYS, FeatureFlagsKeysEnum, refuseShippedSecrets, StringifyEnv } from '@novu/shared';
 import { bool, CleanedEnv, cleanEnv, json, makeValidator, num, port, str, url, ValidatorSpec } from 'envalid';
 
 export function validateEnv() {
+  refuseShippedSecrets(process.env, ['STORE_ENCRYPTION_KEY'], ['NOVU_API_KEY', 'INTERNAL_SERVICES_API_KEY']);
+
   return cleanEnv(process.env, envValidators);
 }
 

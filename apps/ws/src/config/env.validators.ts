@@ -1,7 +1,9 @@
-import { StringifyEnv } from '@novu/shared';
+import { refuseShippedSecrets, StringifyEnv } from '@novu/shared';
 import { bool, CleanedEnv, cleanEnv, json, num, port, str, ValidatorSpec } from 'envalid';
 
 export function validateEnv() {
+  refuseShippedSecrets(process.env, ['JWT_SECRET'], ['INTERNAL_SERVICES_API_KEY']);
+
   return cleanEnv(process.env, envValidators);
 }
 

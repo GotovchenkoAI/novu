@@ -89,4 +89,7 @@ RUN if [ -f dist/metadata.js ]; then \
 
 ENV NEW_RELIC_NO_CONFIG_FILE=true
 
+# Djinn: примеры и окружение разработки в образ не едут: там публичные значения секретов.
+RUN rm -f src/.env src/.env.* src/.example.env dist/.env dist/.env.development dist/.env.agent dist/.env.test dist/.env.ci
+
 ENTRYPOINT [ "dumb-init", "--", "node", "dist/main.js" ]
