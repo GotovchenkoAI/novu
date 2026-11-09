@@ -91,6 +91,13 @@ export class WorkerBaseService implements INovuWorker, OnModuleDestroy {
       this.createWorker(processor, options);
     }
 
+    /*
+     * Djinn: воркер создаётся при сборке зависимостей, а логгер готов только после `app.init()`.
+     * Запуск, взятый из очереди в этом окне, падает и удаляется (`removeOnFail`), то есть теряется молча:
+     * 294 из 355 при рестарте воркера с очередью. Пауза снимается в `startAppInfra`.
+     */
+    if (process.env.NODE_ENV !== 'test') void this.bullMqService.pauseWorker();
+
     Logger.log({ topic: this.topic, sqsEnabled: !!this.sqsConsumer }, 'Worker initialized', LOG_CONTEXT);
   }
 
