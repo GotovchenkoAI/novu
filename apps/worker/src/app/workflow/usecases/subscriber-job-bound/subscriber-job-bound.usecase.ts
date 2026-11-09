@@ -4,6 +4,7 @@ import {
   AnalyticsService,
   CreateNotificationJobs,
   CreateNotificationJobsCommand,
+  CacheService,
   CreateOrUpdateSubscriberCommand,
   CreateOrUpdateSubscriberUseCase,
   FeatureFlagsService,
@@ -13,6 +14,7 @@ import {
   InMemoryLRUCacheStore,
   Instrument,
   InstrumentUsecase,
+  isSubscriberDeleted,
   LogRepository,
   mapEventTypeToTitle,
   PinoLogger,
@@ -72,7 +74,8 @@ export class SubscriberJobBound {
     private preferencesRepository: PreferencesRepository,
     private featureFlagsService: FeatureFlagsService,
     private inMemoryLRUCacheService: InMemoryLRUCacheService,
-    private contextRepository: ContextRepository
+    private contextRepository: ContextRepository,
+    private cacheService?: CacheService
   ) {
     this.logger.setContext(this.constructor.name);
   }
@@ -99,6 +102,8 @@ export class SubscriberJobBound {
       requestCategory,
       contextKeys,
     } = command;
+
+    if (await isSubscriberDeleted(this.cacheService, environmentId, subscriber.subscriberId)) return;
 
     let { topics } = command;
 

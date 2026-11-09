@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { CacheService, isSubscriberDeleted } from '@novu/application-generic';
 import {
   ChannelEndpointRepository,
   DalService,
@@ -116,6 +117,22 @@ describe('Remove Subscriber', () => {
     expect(await ttlOf('notifications')).to.equal(7 * 24 * 60 * 60);
 
     await dal.connect(process.env.MONGO_URL as string);
+  });
+
+  it('метка удаления ставится и для ещё не заведённого подписчика (Djinn)', async () => {
+    const cache = (useCase as unknown as { purgeSubscriberData: { cacheService: CacheService } }).purgeSubscriberData.cacheService;
+
+    await useCase
+      .execute(
+        RemoveSubscriberCommand.create({
+          subscriberId: 'queued-subscriber',
+          environmentId: session.environment._id,
+          organizationId: session.organization._id,
+        })
+      )
+      .catch(() => undefined);
+
+    expect(await isSubscriberDeleted(cache, session.environment._id, 'queued-subscriber')).to.equal(true);
   });
 
   it('should throw a not found exception if subscriber to remove does not exist', async () => {

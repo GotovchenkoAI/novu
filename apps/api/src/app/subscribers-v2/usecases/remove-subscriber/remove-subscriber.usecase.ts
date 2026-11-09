@@ -22,6 +22,8 @@ export class RemoveSubscriber {
   ) {}
 
   async execute({ environmentId: _environmentId, subscriberId }: RemoveSubscriberCommand) {
+    await this.purgeSubscriberData.markDeleted(_environmentId, subscriberId);
+
     await Promise.all([
       this.invalidateCache.invalidateByKey({
         key: buildSubscriberKey({

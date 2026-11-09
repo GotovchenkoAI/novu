@@ -1,5 +1,5 @@
 import { Injectable, Logger, Module } from '@nestjs/common';
-import { StorageService } from '@novu/application-generic';
+import { CacheService, markSubscriberDeleted, StorageService } from '@novu/application-generic';
 import {
   ChannelConnectionRepository,
   ChannelEndpointRepository,
@@ -24,8 +24,14 @@ export class PurgeSubscriberData {
     private messageRepository: MessageRepository,
     private channelEndpointRepository: ChannelEndpointRepository,
     private channelConnectionRepository: ChannelConnectionRepository,
-    private storageService: StorageService
+    private storageService: StorageService,
+    private cacheService: CacheService
   ) {}
+
+  /** Запуск мог стоять в очереди: он не должен завести подписчика заново. Ставится и когда записи ещё нет. */
+  async markDeleted(environmentId: string, subscriberId: string): Promise<void> {
+    await markSubscriberDeleted(this.cacheService, environmentId, subscriberId);
+  }
 
   async execute(environmentId: string, subscriberId: string, subscriberInternalIds: unknown[]): Promise<void> {
     const byInternalId = { _environmentId: environmentId, _subscriberId: { $in: subscriberInternalIds } } as never;
