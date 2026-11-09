@@ -2,7 +2,7 @@ import { MemberRoleEnum, PermissionsEnum } from '@novu/shared';
 import React from 'react';
 import { createContextHook } from '../context';
 import { DecodedJwt } from '.';
-import { getJwtToken, isJwtValid } from './jwt-manager';
+import { decodeJwtPayload, getJwtToken, isJwtValid } from './jwt-manager';
 import { createUserFromJwt, SelfHostedUser } from './user.types';
 
 export type SelfHostedAuthContextValue = {
@@ -19,7 +19,7 @@ export const AuthContext = React.createContext<SelfHostedAuthContextValue>(defau
 
 export function AuthContextProvider({ children }: any) {
   const jwt = getJwtToken();
-  const decodedJwt: DecodedJwt | null = jwt && isJwtValid(jwt) ? JSON.parse(atob(jwt.split('.')[1])) : null;
+  const decodedJwt: DecodedJwt | null = jwt && isJwtValid(jwt) ? decodeJwtPayload<DecodedJwt>(jwt) : null;
 
   const value = {
     currentUser: createUserFromJwt(decodedJwt),

@@ -1,6 +1,7 @@
 import React from 'react';
 import { createContextHook } from '../context';
 import { DecodedJwt } from '.';
+import { decodeJwtPayload } from './jwt-manager';
 import { createUserFromJwt, SelfHostedUser } from './user.types';
 
 export const UserContext = React.createContext<{
@@ -13,7 +14,7 @@ export const UserContext = React.createContext<{
 
 export function UserContextProvider({ children }: any) {
   const jwt = localStorage.getItem('self-hosted-jwt');
-  const decodedJwt: DecodedJwt | null = jwt ? JSON.parse(atob(jwt.split('.')[1])) : null;
+  const decodedJwt: DecodedJwt | null = jwt ? decodeJwtPayload<DecodedJwt>(jwt) : null;
   const value = {
     user: createUserFromJwt(decodedJwt),
     isLoaded: true,

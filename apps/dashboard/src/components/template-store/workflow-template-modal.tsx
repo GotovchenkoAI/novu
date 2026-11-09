@@ -293,7 +293,10 @@ export function WorkflowTemplateModal(props: WorkflowTemplateModalProps) {
 
                 <ScrollArea className="h-[520px]">
                   <div className="pr-2">
-                    {!suggestions.length && !filteredSuggestions.length ? (
+                    {!isLoading && !suggestions.length ? (
+                      // Djinn: внешнего каталога шаблонов нет, каркас без данных висел бы вечно.
+                      <p className="text-text-soft text-paragraph-sm">Start with a blank workflow.</p>
+                    ) : !suggestions.length && !filteredSuggestions.length ? (
                       <div className="grid grid-cols-3 gap-4">
                         <Skeleton className="h-[140px] w-full" />
                         <Skeleton className="h-[140px] w-full" />
