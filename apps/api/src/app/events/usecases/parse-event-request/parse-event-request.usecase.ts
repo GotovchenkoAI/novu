@@ -420,8 +420,15 @@ export class ParseEventRequest {
 
     if (!command.skipQueueInsertion) {
       await this.workflowQueueService.add({ name: transactionId, data: jobData, groupId: command.organizationId });
+      // Djinn: только идентификаторы. Команда целиком несла `overrides`, `actor`, `tenant.data`, `context`.
       this.logger.info(
-        { ...command, transactionId, discoveredWorkflowId: discoveredWorkflow?.workflowId },
+        {
+          environmentId: command.environmentId,
+          organizationId: command.organizationId,
+          identifier: command.identifier,
+          transactionId,
+          discoveredWorkflowId: discoveredWorkflow?.workflowId,
+        },
         'Event dispatched to [Workflow] Queue'
       );
     }
