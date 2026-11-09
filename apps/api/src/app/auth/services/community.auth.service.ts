@@ -199,10 +199,8 @@ export class CommunityAuthService implements IAuthService {
   public async getSubscriberWidgetToken(subscriber: SubscriberEntity, contextKeys: string[]): Promise<string> {
     return this.jwtService.sign(
       {
+        // Djinn: без адреса и имён: клиент передаёт этот токен в адресе соединения ws.
         _id: subscriber._id,
-        firstName: subscriber.firstName,
-        lastName: subscriber.lastName,
-        email: subscriber.email,
         organizationId: subscriber._organizationId,
         environmentId: subscriber._environmentId,
         subscriberId: subscriber.subscriberId,
