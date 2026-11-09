@@ -63,15 +63,8 @@ export class InitializeSession {
         environmentId: environment._id,
         organizationId: environment._organizationId,
         subscriberId: command.subscriberId,
-        firstName: command.firstName,
-        lastName: command.lastName,
-        email: command.email,
-        phone: command.phone,
-        allowUpdate: isHmacValidForAnyKey(
-          environment.apiKeys.map((apiKey) => apiKey.key),
-          command.subscriberId,
-          command.hmacHash
-        ),
+        // Djinn: профиль подписчика заводит только сервер, как и в сессии ленты.
+        allowUpdate: false,
       })
     );
 
