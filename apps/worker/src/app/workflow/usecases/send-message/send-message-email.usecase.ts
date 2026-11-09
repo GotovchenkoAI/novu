@@ -613,7 +613,7 @@ export class SendMessageEmail extends SendMessageBase {
         ),
       });
 
-      if (isCustomSmtp) await this.smtpLoginGate!.accepted(integration);
+      if (isCustomSmtp) await this.smtpLoginGate!.accepted(integration, loginPass);
 
       await this.sendWebhookMessage.execute({
         eventType: WebhookEventEnum.MESSAGE_SENT,

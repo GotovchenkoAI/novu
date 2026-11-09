@@ -9,12 +9,16 @@ class FakeRedis {
   }
   async set(key: string, value: string, ...args: unknown[]) {
     if (args.includes('NX') && this.store.has(key)) return null;
+    if (args.includes('XX') && !this.store.has(key)) return null;
     this.store.set(key, value);
 
     return 'OK';
   }
   async del(key: string) {
     return this.store.delete(key) ? 1 : 0;
+  }
+  async mget(...keys: string[]) {
+    return keys.map((key) => this.store.get(key) ?? null);
   }
 }
 
@@ -62,15 +66,25 @@ describe('SmtpLoginGate (Djinn)', () => {
     await gate.refused(integration());
     expect(await gate.closedFor(integration('fixed'))).to.equal(null);
 
-    await gate.accepted(integration());
+    await gate.accepted(integration(), { allowed: true, slotKey: 'slot', token: 't' });
     expect(await gate.closedFor(integration())).to.equal(null);
+  });
+
+  it('письмо по открытому соединению не снимает паузу и не возвращает память о входе', async () => {
+    await gate.accepted(integration(), { allowed: true, slotKey: 'slot', token: 't' });
+    await gate.refused(integration());
+
+    await gate.accepted(integration(), { allowed: true });
+
+    expect(await gate.closedFor(integration())).to.be.greaterThan(55_000);
+    expect((await gate.enter(integration())).allowed).to.equal(false);
   });
 
   it('известный вход пускает письма параллельно, отказ возвращает к одной пробе', async () => {
     const enterAll = () => Promise.all(Array.from({ length: 20 }, () => gate.enter(integration())));
 
     const probe = await gate.enter(integration());
-    await gate.accepted(integration());
+    await gate.accepted(integration(), probe);
     await gate.leave(probe);
     const parallel = await enterAll();
     expect(parallel.filter((pass) => pass.allowed)).to.have.length(20);

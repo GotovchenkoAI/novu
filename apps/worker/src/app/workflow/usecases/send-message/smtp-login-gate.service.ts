@@ -12,6 +12,7 @@ const SLOT_WAIT_MS = 5_000;
 const SLOT_POLL_MS = 50;
 /** Сколько помним принятый вход: пока письма идут, он обновляется; дальше снова одна проба. */
 const LOGIN_KNOWN_GOOD_SECONDS = 60;
+const LOGIN_REFRESH_MS = 20_000;
 /** Соединение пропало, письмо не принято: шаг ждёт и повторяется. Около 7 минут, дальше обычный отказ. */
 const CONNECTION_LOST_MAX_DEFERRALS = 40;
 
@@ -44,6 +45,8 @@ export function smtpConnectionLostRetryInMs(error: unknown, extensions = 0): num
  */
 @Injectable()
 export class SmtpLoginGate {
+  private refreshedAt = new Map<string, number>();
+
   constructor(private cacheService: CacheService) {}
 
   private get client() {
@@ -53,7 +56,10 @@ export class SmtpLoginGate {
   /** Сколько ждать до конца паузы; `null` — вход открыт. */
   async closedFor(integration: IntegrationEntity): Promise<number | null> {
     if (!this.cacheService.cacheEnabled()) return null;
-    const raw = await this.client.get(this.holdKey(integration));
+    return this.leftOf(await this.client.get(this.holdKey(integration)));
+  }
+
+  private leftOf(raw: string | null): number | null {
     const hold: Hold | null = raw ? JSON.parse(raw) : null;
     const left = hold ? hold.until - Date.now() : 0;
 
@@ -68,9 +74,10 @@ export class SmtpLoginGate {
     const deadline = Date.now() + SLOT_WAIT_MS;
 
     for (;;) {
-      const retryInMs = await this.closedFor(integration);
+      const [rawHold, good] = await this.client.mget(this.holdKey(integration), this.goodKey(integration));
+      const retryInMs = this.leftOf(rawHold);
       if (retryInMs !== null) return { allowed: false, retryInMs };
-      if (await this.client.get(this.goodKey(integration))) return { allowed: true };
+      if (good) return { allowed: true };
 
       if (await this.client.set(slotKey, token, 'PX', SLOT_TTL_MS, 'NX')) {
         const closed = await this.closedFor(integration);
@@ -85,10 +92,25 @@ export class SmtpLoginGate {
     }
   }
 
-  async accepted(integration: IntegrationEntity): Promise<void> {
+  /**
+   * Паузу снимает только проба: письмо, ушедшее по уже открытому соединению, про вход ничего не говорит.
+   * Обычное письмо лишь продлевает память о принятом входе, и не чаще раза в LOGIN_REFRESH_MS: отказ её стёр — не вернёт.
+   */
+  async accepted(integration: IntegrationEntity, pass?: SmtpLoginPass): Promise<void> {
     if (!this.cacheService.cacheEnabled()) return;
-    await this.client.set(this.goodKey(integration), '1', 'EX', LOGIN_KNOWN_GOOD_SECONDS);
-    await this.client.del(this.holdKey(integration));
+    const goodKey = this.goodKey(integration);
+
+    if (pass?.allowed && pass.slotKey) {
+      await this.client.set(goodKey, '1', 'EX', LOGIN_KNOWN_GOOD_SECONDS);
+      await this.client.del(this.holdKey(integration));
+
+      return;
+    }
+
+    const now = Date.now();
+    if (now - (this.refreshedAt.get(goodKey) ?? 0) < LOGIN_REFRESH_MS) return;
+    this.refreshedAt.set(goodKey, now);
+    await this.client.set(goodKey, '1', 'EX', LOGIN_KNOWN_GOOD_SECONDS, 'XX');
   }
 
   /** Отказ во входе: следующая ступень паузы. Возвращает, через сколько повторить шаг. */
