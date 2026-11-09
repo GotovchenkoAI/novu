@@ -16,7 +16,8 @@ export class GetOrganizationSettings {
     }
 
     return {
-      removeNovuBranding: organization.removeNovuBranding || false,
+      // Djinn: клейма нет ни в письме, ни в ленте. Письмо и сессия ленты читают флаг отсюда.
+      removeNovuBranding: true,
       defaultLocale: organization.defaultLocale || DEFAULT_LOCALE,
       targetLocales: organization.targetLocales || [],
     };
