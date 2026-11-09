@@ -127,3 +127,24 @@ test('should use the bot token in the request URL', async () => {
 function baseUrl(botToken: string) {
   return `https://api.telegram.org/bot${botToken}/sendMessage`;
 }
+
+test('should send through TELEGRAM_API_BASE_URL when it is set', async () => {
+  process.env.TELEGRAM_API_BASE_URL = 'https://bridge.example/telegram/';
+
+  try {
+    const { mockPost } = axiosSpy(buildResponse(1));
+
+    await new TelegramChatProvider(mockProviderConfig).sendMessage({
+      content: 'Hello',
+      channelData: {
+        identifier: 'chat-123',
+        type: ENDPOINT_TYPES.TELEGRAM_CHAT,
+        endpoint: { chatId: '123456789' },
+      },
+    });
+
+    expect(mockPost.mock.calls[0][0]).toBe('https://bridge.example/telegram/bottest-bot-token-123/sendMessage');
+  } finally {
+    delete process.env.TELEGRAM_API_BASE_URL;
+  }
+});

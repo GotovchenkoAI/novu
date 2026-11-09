@@ -9,6 +9,7 @@ import {
   InvalidTelegramMobileTokenError,
   TelegramMobileLinkTokenService,
 } from '../../../telegram-linking/telegram-mobile-link-token.service';
+import { buildTelegramBotApiUrl } from '../../../telegram-linking/telegram-webhook.utils';
 import { CreateIntegrationCommand } from '../create-integration/create-integration.command';
 import { CreateIntegration } from '../create-integration/create-integration.usecase';
 import { ConsumeIntegrationStoreTelegramMobileLinkCommand } from './consume-integration-store-telegram-mobile-link.command';
@@ -132,7 +133,7 @@ export class ConsumeIntegrationStoreTelegramMobileLink {
    * use-case's job.
    */
   private async callGetMe(botToken: string): Promise<string> {
-    const telegramUrl = `https://api.telegram.org/bot${botToken}/getMe`;
+    const telegramUrl = buildTelegramBotApiUrl(botToken, 'getMe');
     let lastError: unknown;
 
     for (let attempt = 0; attempt < TELEGRAM_MAX_RETRIES; attempt += 1) {
