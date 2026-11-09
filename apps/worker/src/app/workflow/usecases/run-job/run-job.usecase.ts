@@ -22,6 +22,7 @@ import {
   type WorkflowForTrace,
   WorkflowRunService,
   WorkflowRunStatusEnum,
+  RETRYABLE_ERROR_CODES,
 } from '@novu/application-generic';
 import {
   JobEntity,
@@ -63,6 +64,18 @@ type SelectedWorkflowFields = Pick<NotificationTemplateEntity, 'steps'>;
 const SELECTED_WORKFLOW_FIELDS_PROJECTION: Record<keyof SelectedWorkflowFields, 1> = {
   steps: 1,
 } as const;
+
+/** Djinn: шаг рендерит API; пока он перезапускается, шаг ждёт. Около четверти часа, дальше обычный отказ. */
+const BRIDGE_MAX_DEFERRALS = 40;
+
+export function bridgeRetryInMs(error: unknown, job: JobEntity): number | null {
+  const code = ((error as { getResponse?: () => { code?: string } }).getResponse?.() ?? {}).code;
+  const unreachable = !!code && RETRYABLE_ERROR_CODES.includes(code);
+
+  if (!unreachable || (job.scheduleExtensionsCount ?? 0) >= BRIDGE_MAX_DEFERRALS) return null;
+
+  return 15_000 + Math.floor(Math.random() * 15_000);
+}
 
 @Injectable()
 export class RunJob {
@@ -403,8 +416,9 @@ export class RunJob {
         await this.conditionallyUpdateDeliveryLifecycle(job, WorkflowRunStatusEnum.PROCESSING, workflow, notification);
       }
     } catch (caughtError: unknown) {
-      if (caughtError instanceof SmtpLoginDeferred) {
-        // Djinn: вход в SMTP закрыт на паузу. Шаг ждёт её и остаётся живым; счётчик даёт новый jobId в очереди.
+      const retryInMs = caughtError instanceof SmtpLoginDeferred ? caughtError.retryInMs : bridgeRetryInMs(caughtError, job);
+      if (retryInMs !== null) {
+        // Djinn: вход в SMTP закрыт на паузу или API перезапускается. Шаг ждёт и остаётся живым; счётчик даёт новый jobId в очереди.
         const scheduleExtensionsCount = (job.scheduleExtensionsCount ?? 0) + 1;
         await this.jobRepository.updateOne(
           { _id: job._id, _environmentId: job._environmentId },
@@ -412,7 +426,7 @@ export class RunJob {
         );
         await this.addJobUsecase.queueJob({
           job: { ...job, status: JobStatusEnum.DELAYED, scheduleExtensionsCount },
-          delay: caughtError.retryInMs,
+          delay: retryInMs,
           untilDate: null,
         });
         isJobExtendedToSubscriberSchedule = true;
