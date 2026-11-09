@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto';
 import 'cross-fetch/polyfill';
 import { faker } from '@faker-js/faker';
 import {
@@ -197,6 +198,7 @@ export class UserSession {
       .send({
         applicationIdentifier: this.environment.identifier,
         subscriberId: this.subscriberId,
+        hmacHash: createHmac('sha256', this.apiKey).update(this.subscriberId as string).digest('hex'),
         firstName: 'Widget User',
         lastName: 'Test',
         email: 'test@example.com',
