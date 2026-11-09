@@ -462,6 +462,7 @@ describe('Session - /inbox/session (POST) #novu-v2', async () => {
       subscriberId: mockSubscriberId,
       subscriberHash,
       context,
+      contextHash: '', // Djinn: помощник иначе подпишет контекст сам
     });
 
     expect(status).to.equal(400);
