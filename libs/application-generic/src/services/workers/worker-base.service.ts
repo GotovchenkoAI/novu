@@ -7,7 +7,7 @@ import {
   getSqsDefaultWaitTimeSeconds,
 } from '../../config/workers';
 import { PinoLogger } from '../../logging';
-import { BullMqService, Job, Processor, WorkerOptions } from '../bull-mq';
+import { BullMqService, DelayedError, Job, Processor, WorkerOptions } from '../bull-mq';
 import { INovuWorker } from '../readiness';
 import {
   createSqsJobAdapter,
@@ -49,6 +49,24 @@ export function isPermanentClientError(error: unknown): boolean {
   }
 
   return false;
+}
+
+/**
+ * Djinn: очереди апстрима работают «не более одного раза»: сбой MongoDB под потоком терял принятые
+ * запуски (20 из 288 при простое 15 с), а принятое API не должно теряться. Ждём дольше
+ * `RUNNING_CLAIM_STALE_AFTER_MS`, иначе шаг, взятый до сбоя, не будет взят повторно.
+ */
+const STORE_OUTAGE_RETRY_MS = 65_000;
+const STORE_OUTAGE_RETRY_WINDOW_MS = 60 * 60 * 1000;
+
+/** Слои DAL и usecase'ов заворачивают ошибку драйвера в свои, поэтому имя не помогает: судим по тексту. */
+const STORE_OUTAGE_MESSAGE =
+  /buffering timed out|client must be connected|topology is closed|connection pool for .* was cleared|server selection timed out|interrupted at shutdown|connection .*closed|getaddrinfo |connect ECONNREFUSED|connect ETIMEDOUT|read ECONNRESET/i;
+
+export function isStoreOutage(error: unknown): boolean {
+  const { name = '', message = '' } = (error ?? {}) as { name?: string; message?: string };
+
+  return /^Mongo(ose)?(Server|Network|NotConnected|PoolCleared|TopologyClosed|WaitQueue)/.test(name) || STORE_OUTAGE_MESSAGE.test(message);
 }
 
 export type WorkerProcessor = string | Processor<any, unknown, string> | undefined;
@@ -132,12 +150,21 @@ export class WorkerBaseService implements INovuWorker, OnModuleDestroy {
   }
 
   private wrapForBullMQ(processor: Processor<any, unknown, string>): Processor<any, unknown, string> {
-    return async (job: any) => {
+    return async (job: any, token?: string) => {
       if (this.shouldSkipProcessing(job.data, job.id)) {
         return;
       }
 
-      return await processor(job);
+      try {
+        return await processor(job, token as string);
+      } catch (error) {
+        if (!isStoreOutage(error) || Date.now() - job.timestamp > STORE_OUTAGE_RETRY_WINDOW_MS) throw error;
+
+        // Djinn: запуск не потерян и шаг не упал, задача вернётся в очередь, не расходуя попытки.
+        Logger.warn({ topic: this.topic, jobId: job.id, error: (error as Error).name }, 'Store outage, job retried later', LOG_CONTEXT);
+        await job.moveToDelayed(Date.now() + STORE_OUTAGE_RETRY_MS, token);
+        throw new DelayedError();
+      }
     };
   }
 

@@ -13,6 +13,7 @@ import {
   Instrument,
   InstrumentUsecase,
   isRetryableWebhookFilterError,
+  isStoreOutage,
   NotificationPayloadService,
   PinoLogger,
   StepRunRepository,
@@ -740,6 +741,9 @@ export class RunJob {
           });
         }
       } catch (error: unknown) {
+        // Djinn: сбой хранилища не конец цепочки. Задача вернётся в очередь, и повтор поднимет следующий шаг.
+        if (isStoreOutage(error)) throw error;
+
         if (!nextJob) {
           // Fallback: update workflow run status if nextJob is unexpectedly missing
           // (should not occur due to prior nextJob check in loop)

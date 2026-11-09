@@ -8,5 +8,6 @@ export {
   WorkerBaseService,
   WorkerOptions,
   WorkerProcessor,
+  isStoreOutage,
 } from './worker-base.service';
 export { WorkflowWorkerService } from './workflow-worker.service';

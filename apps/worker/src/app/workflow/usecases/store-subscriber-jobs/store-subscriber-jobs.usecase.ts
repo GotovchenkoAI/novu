@@ -8,6 +8,7 @@ import {
   TraceLogRepository,
 } from '@novu/application-generic';
 import { DalException, JobEntity, JobRepository, JobStatusEnum } from '@novu/dal';
+import { StepTypeEnum } from '@novu/shared';
 import { PlatformException } from '../../../shared/utils';
 import { AddJob } from '../add-job';
 import { StoreSubscriberJobsCommand } from './store-subscriber-jobs.command';
@@ -21,6 +22,33 @@ export class StoreSubscriberJobs {
     private stepRunRepository: StepRunRepository,
     private traceLogRepository: TraceLogRepository
   ) {}
+
+  /**
+   * Djinn: задача вернулась в очередь после сбоя MongoDB, а шаги этого запуска уже записаны. Вторая
+   * запись дала бы второе письмо. Если первый шаг не успел в очередь, ставим его.
+   */
+  async resumeStored(environmentId: string, transactionId: string, subscriberInternalId: string): Promise<boolean> {
+    const first = await this.jobRepository.findOne({
+      _environmentId: environmentId,
+      transactionId,
+      _subscriberId: subscriberInternalId,
+      type: StepTypeEnum.TRIGGER,
+    });
+
+    if (!first) return false;
+
+    if (first.status === JobStatusEnum.PENDING) {
+      await this.addJob.execute({
+        userId: first._userId,
+        environmentId: first._environmentId,
+        organizationId: first._organizationId,
+        jobId: first._id,
+        job: first,
+      });
+    }
+
+    return true;
+  }
 
   @InstrumentUsecase()
   async execute(command: StoreSubscriberJobsCommand) {

@@ -14,6 +14,7 @@ import {
   UnrecoverableError,
   Worker,
   WorkerOptions,
+  DelayedError,
 } from 'bullmq';
 
 import { WorkflowInMemoryProviderService } from '../in-memory-provider';
@@ -28,6 +29,7 @@ type BullMqJobData = undefined | IJobData | IEventJobData;
 const LOG_CONTEXT = 'BullMqService';
 
 export {
+  DelayedError,
   Job,
   JobsOptions,
   Processor,

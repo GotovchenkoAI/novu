@@ -247,6 +247,8 @@ export class SubscriberJobBound {
       createNotificationJobsCommand.actor = actor;
     }
 
+    if (await this.storeSubscriberJobs.resumeStored(environmentId, command.transactionId, subscriberProcessed._id)) return;
+
     const notificationJobs = await this.createNotificationJobs.execute(
       CreateNotificationJobsCommand.create(createNotificationJobsCommand)
     );

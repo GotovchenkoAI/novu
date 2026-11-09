@@ -159,6 +159,9 @@ export class QueueBaseService implements OnModuleDestroy {
         'Failed to fetch organization for queue backend mode flag',
         LOG_CONTEXT
       );
+
+      // Djinn: база недоступна — это не «организации нет». Иначе API отвечал 201, а задача терялась молча.
+      return QueueBackendMode.BULLMQ;
     }
 
     /*
