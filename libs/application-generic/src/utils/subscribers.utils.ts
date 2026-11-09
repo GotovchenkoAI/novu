@@ -9,7 +9,8 @@ export function mapSubscribersToJobs(
 ): IProcessSubscriberBulkJobDto[] {
   return subscribers.map((subscriber) => {
     const job: IProcessSubscriberBulkJobDto = {
-      name: command.transactionId + subscriber.subscriberId,
+      // Djinn: имя задачи попадает в поток событий BullMQ, который удаление подписчика не чистит.
+      name: command.transactionId,
       data: {
         environmentId: command.environmentId,
         organizationId: command.organizationId,
