@@ -69,7 +69,7 @@ jobs:
           PLATFORM: ${{ matrix.arch.platform }}
           ARCH: ${{ matrix.arch.name }}
         run: |
-          set -euo pipefail
+          set -eu
           image="${IMAGE_PREFIX}-${SERVICE}"
           common=(
             --platform "$PLATFORM"
@@ -84,6 +84,7 @@ jobs:
           if [ "$SERVICE" = dashboard ]; then
             docker buildx build "${common[@]}" --build-arg VITE_SELF_HOSTED=true -f apps/dashboard/dockerfile .
           else
+            # pnpm-context кончает кодом 13 (незавершённый await в конце потока), важен код сборки.
             pnpm --silent --workspace-root pnpm-context -- "apps/${SERVICE}/Dockerfile" \
               | docker buildx build "${common[@]}" --build-arg "PACKAGE_PATH=apps/${SERVICE}" -
           fi
