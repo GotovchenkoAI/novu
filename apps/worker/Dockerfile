@@ -64,7 +64,7 @@ ENV CI=true
 
 RUN apk upgrade --no-cache && \
     apk add --no-cache --repository=https://dl-cdn.alpinelinux.org/alpine/edge/main --upgrade libcrypto3 libssl3 musl musl-utils && \
-    apk --no-cache add curl && \
+    apk --no-cache add curl dumb-init && \
     npm i pm2@6.0.14 -g && \
     rm -rf /usr/local/lib/node_modules/npm /usr/local/bin/npm /usr/local/bin/npx
 
@@ -79,4 +79,4 @@ COPY --chown=1000:1000 --from=dev /usr/src/app/apps/worker/dist ./dist
 
 ENV NEW_RELIC_NO_CONFIG_FILE=true
 
-ENTRYPOINT [ "sh", "-c", "pm2-runtime start dist/main.js -i max" ]
+ENTRYPOINT [ "dumb-init", "--", "node", "dist/main.js" ]
