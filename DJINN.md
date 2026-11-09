@@ -28,7 +28,7 @@
 | Журнал запуска | только идентификаторы вместо всей команды |
 | Образы | `.github/workflows/publish-djinn-images.yml`: `ghcr.io/gotovchenkoai/novu-{api,worker,ws,dashboard}`, amd64 и arm64, тег `sha-<коммит>`, отпечаток в сводке запуска |
 
-## Ядро: 74 файлов, +876 / -369 строк
+## Ядро: 74 файлов, +899 / -369 строк
 
 | Файл | Добавлено | Удалено |
 |---|---|---|
@@ -42,7 +42,7 @@
 | `apps/api/src/app/events/usecases/parse-event-request/parse-event-request.usecase.ts` | +8 | -1 |
 | `apps/api/src/app/events/usecases/purge-transaction/purge-transaction.command.ts` | +8 | -0 |
 | `apps/api/src/app/events/usecases/purge-transaction/purge-transaction.usecase.ts` | +71 | -0 |
-| `apps/api/src/app/inbox/e2e/session.e2e.ts` | +7 | -2 |
+| `apps/api/src/app/inbox/e2e/session.e2e.ts` | +8 | -2 |
 | `apps/api/src/app/inbox/usecases/session/session.usecase.ts` | +22 | -28 |
 | `apps/api/src/app/integrations/usecases/consume-integration-store-telegram-mobile-link/consume-integration-store-telegram-mobile-link.usecase.ts` | +2 | -1 |
 | `apps/api/src/app/organization/usecases/get-organization-settings/get-organization-settings.usecase.ts` | +2 | -1 |
@@ -77,7 +77,7 @@
 | `apps/worker/src/app/workflow/usecases/add-job/add-job.usecase.ts` | +1 | -1 |
 | `apps/worker/src/app/workflow/usecases/run-job/run-job.usecase.ts` | +37 | -0 |
 | `apps/worker/src/app/workflow/usecases/send-message/send-message-email.usecase.ts` | +46 | -1 |
-| `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.service.ts` | +136 | -0 |
+| `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.service.ts` | +158 | -0 |
 | `apps/worker/src/app/workflow/usecases/store-subscriber-jobs/store-subscriber-jobs.usecase.ts` | +28 | -0 |
 | `apps/worker/src/app/workflow/usecases/subscriber-job-bound/subscriber-job-bound.usecase.ts` | +8 | -1 |
 | `apps/worker/src/app/workflow/workflow.module.ts` | +2 | -1 |
@@ -107,7 +107,7 @@
 | `packages/shared/src/config/index.ts` | +1 | -0 |
 | `packages/shared/src/config/shippedSecrets.ts` | +28 | -0 |
 
-## Тесты: 18 файлов, +906 / -27 строк
+## Тесты: 18 файлов, +920 / -27 строк
 
 | Файл | Добавлено | Удалено |
 |---|---|---|
@@ -122,7 +122,7 @@
 | `apps/dashboard/src/utils/self-hosted/jwt-manager.spec.ts` | +14 | -0 |
 | `apps/worker/src/app/workflow/services/store-outage-retry.spec.ts` | +52 | -0 |
 | `apps/worker/src/app/workflow/usecases/run-job/bridge-retry.spec.ts` | +25 | -0 |
-| `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.spec.ts` | +96 | -0 |
+| `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.spec.ts` | +110 | -0 |
 | `apps/worker/src/app/workflow/usecases/store-subscriber-jobs/resume-stored.spec.ts` | +32 | -0 |
 | `apps/worker/src/app/workflow/usecases/subscriber-job-bound/subscriber-tombstone.spec.ts` | +52 | -0 |
 | `libs/application-generic/src/utils/subscribers.utils.spec.ts` | +15 | -0 |
