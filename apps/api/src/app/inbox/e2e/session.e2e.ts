@@ -53,14 +53,19 @@ describe('Session - /inbox/session (POST) #novu-v2', async () => {
       request.set('origin', origin);
     }
 
+    // Djinn: хэш обязателен всегда. Тест без своего хэша получает верный, свой неверный остаётся его.
+    const hashed = subscriberId ?? (subscriber?.subscriberId as string | undefined);
+    const secret = session.environment.apiKeys[0].key;
+    const validHash = hashed ? createHash(secret, hashed) : undefined;
+
     return await request.send({
       applicationIdentifier,
       subscriberId,
-      subscriberHash,
+      subscriberHash: subscriberHash ?? validHash,
       subscriber,
       defaultSchedule,
       context,
-      contextHash,
+      contextHash: contextHash ?? (context ? createContextHash(secret, context) : undefined),
     });
   };
 
