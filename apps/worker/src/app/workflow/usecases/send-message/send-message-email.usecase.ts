@@ -52,7 +52,7 @@ import { PlatformException } from '../../../shared/utils';
 import { combineProviderOverrides, SendMessageBase } from './send-message.base';
 import { SendMessageChannelCommand } from './send-message-channel.command';
 import { SendMessageResult, SendMessageStatus } from './send-message-type.usecase';
-import { isSmtpLoginRefused, SmtpLoginDeferred, SmtpLoginGate } from './smtp-login-gate.service';
+import { isSmtpLoginRefused, SmtpLoginDeferred, SmtpLoginGate, smtpConnectionLostRetryInMs } from './smtp-login-gate.service';
 
 const LOG_CONTEXT = 'SendMessageEmail';
 
@@ -681,6 +681,13 @@ export class SendMessageEmail extends SendMessageBase {
         await this.messageRepository.delete({ _id: message._id, _environmentId: command.environmentId });
 
         throw new SmtpLoginDeferred(retryInMs);
+      }
+
+      const lostRetryInMs = isCustomSmtp ? smtpConnectionLostRetryInMs(error, command.job.scheduleExtensionsCount) : null;
+      if (lostRetryInMs !== null) {
+        await this.messageRepository.delete({ _id: message._id, _environmentId: command.environmentId });
+
+        throw new SmtpLoginDeferred(lostRetryInMs);
       }
 
       await this.sendErrorStatus(

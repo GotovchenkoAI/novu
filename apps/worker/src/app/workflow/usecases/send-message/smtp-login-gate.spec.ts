@@ -1,6 +1,6 @@
 import { IntegrationEntity } from '@novu/dal';
 import { expect } from 'chai';
-import { isSmtpLoginRefused, SmtpLoginGate } from './smtp-login-gate.service';
+import { isSmtpLoginRefused, SmtpLoginGate, smtpConnectionLostRetryInMs } from './smtp-login-gate.service';
 
 class FakeRedis {
   store = new Map<string, string>();
@@ -64,6 +64,29 @@ describe('SmtpLoginGate (Djinn)', () => {
 
     await gate.accepted(integration());
     expect(await gate.closedFor(integration())).to.equal(null);
+  });
+
+  it('известный вход пускает письма параллельно, отказ возвращает к одной пробе', async () => {
+    const enterAll = () => Promise.all(Array.from({ length: 20 }, () => gate.enter(integration())));
+
+    const probe = await gate.enter(integration());
+    await gate.accepted(integration());
+    await gate.leave(probe);
+    const parallel = await enterAll();
+    expect(parallel.filter((pass) => pass.allowed)).to.have.length(20);
+    expect(parallel.some((pass) => pass.allowed && pass.slotKey)).to.equal(false);
+
+    await gate.refused(integration());
+    const afterRefusal = await enterAll();
+    expect(afterRefusal.filter((pass) => pass.allowed)).to.have.length(0);
+  }).timeout(20_000);
+
+  it('пропавшее соединение откладывает шаг, ожидание ограничено, отказ сервера идёт обычным путём', () => {
+    expect(smtpConnectionLostRetryInMs({ code: 'ECONNECTION' })).to.be.within(5_000, 15_000);
+    expect(smtpConnectionLostRetryInMs(new Error('Connection pool was closed'))).to.be.within(5_000, 15_000);
+    expect(smtpConnectionLostRetryInMs({ code: 'ECONNECTION' }, 40)).to.equal(null);
+    expect(smtpConnectionLostRetryInMs({ code: 'EENVELOPE' })).to.equal(null);
+    expect(smtpConnectionLostRetryInMs(new Error('boom'))).to.equal(null);
   });
 
   it('узнаёт отказ во входе только по коду EAUTH', () => {
