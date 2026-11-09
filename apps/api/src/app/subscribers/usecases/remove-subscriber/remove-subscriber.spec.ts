@@ -100,6 +100,44 @@ describe('Remove Subscriber', () => {
     ).to.equal(0);
   });
 
+  it('сбой посреди очистки: повтор доводит удаление до конца (Djinn)', async () => {
+    const subscriberService = new SubscribersService(session.organization._id, session.environment._id);
+    const subscriber = await subscriberService.createSubscriber();
+    const _environmentId = session.environment._id;
+    const owned = { _environmentId, _organizationId: session.organization._id, _subscriberId: subscriber._id };
+    const notificationRepository = new NotificationRepository();
+    const jobRepository = new JobRepository();
+    const executionDetailsRepository = new ExecutionDetailsRepository();
+    await notificationRepository._model.create({ ...owned, payload: { caseTitle: 'marker' } });
+    await jobRepository._model.create({ ...owned, payload: { caseTitle: 'marker' } });
+    await executionDetailsRepository._model.create({ ...owned, raw: 'marker' });
+    const command = RemoveSubscriberCommand.create({
+      subscriberId: subscriber.subscriberId,
+      environmentId: _environmentId,
+      organizationId: session.organization._id,
+    });
+    const purge = (useCase as unknown as { purgeSubscriberData: { executionDetailsRepository: { delete: unknown } } })
+      .purgeSubscriberData.executionDetailsRepository;
+    const realDelete = purge.delete;
+    purge.delete = async () => {
+      purge.delete = realDelete;
+      throw new Error('сбой посреди очистки');
+    };
+
+    let failure: Error | undefined;
+    await useCase.execute(command).catch((error: Error) => {
+      failure = error;
+    });
+    expect(failure?.message).to.equal('сбой посреди очистки');
+
+    expect(await useCase.execute(command)).to.eql({ acknowledged: true, status: 'deleted' });
+
+    const filter = { _environmentId, _subscriberId: subscriber._id };
+    expect(await notificationRepository._model.countDocuments(filter)).to.equal(0);
+    expect(await jobRepository._model.countDocuments(filter)).to.equal(0);
+    expect(await executionDetailsRepository._model.countDocuments(filter)).to.equal(0);
+  });
+
   it('данные вызова получают TTL 30 суток, а настройка меняет срок на действующей базе (Djinn)', async () => {
     const dal = new DalService();
     await dal.connect(process.env.MONGO_URL as string);

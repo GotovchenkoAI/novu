@@ -24,21 +24,6 @@ export class RemoveSubscriber {
   async execute({ environmentId: _environmentId, subscriberId }: RemoveSubscriberCommand) {
     await this.purgeSubscriberData.markDeleted(_environmentId, subscriberId);
 
-    await Promise.all([
-      this.invalidateCache.invalidateByKey({
-        key: buildSubscriberKey({
-          subscriberId,
-          _environmentId,
-        }),
-      }),
-      this.invalidateCache.invalidateQuery({
-        key: buildMessageCountKey().invalidate({
-          subscriberId,
-          _environmentId,
-        }),
-      }),
-    ]);
-
     const subscriberInternalIds = await this.subscriberRepository._model.distinct('_id', {
       subscriberId,
       _environmentId,
@@ -47,6 +32,9 @@ export class RemoveSubscriber {
     if (subscriberInternalIds.length === 0) {
       throw new NotFoundException({ message: 'Subscriber was not found', externalSubscriberId: subscriberId });
     }
+
+    // Djinn: подписчик удаляется последним, иначе сбой очистки оставит данные вызова без пути к ним.
+    await this.purgeSubscriberData.execute(_environmentId, subscriberId, subscriberInternalIds);
 
     await this.subscriberRepository.withTransaction(async () => {
       /*
@@ -78,7 +66,21 @@ export class RemoveSubscriber {
       });
     });
 
-    await this.purgeSubscriberData.execute(_environmentId, subscriberId, subscriberInternalIds);
+    // Djinn: кэш сбрасывается после удаления: раньше чтение между ними вернуло бы подписчика в кэш.
+    await Promise.all([
+      this.invalidateCache.invalidateByKey({
+        key: buildSubscriberKey({
+          subscriberId,
+          _environmentId,
+        }),
+      }),
+      this.invalidateCache.invalidateQuery({
+        key: buildMessageCountKey().invalidate({
+          subscriberId,
+          _environmentId,
+        }),
+      }),
+    ]);
 
     return {
       acknowledged: true,
