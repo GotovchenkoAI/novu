@@ -8,7 +8,7 @@ import {
   SelectIntegration,
   SelectIntegrationCommand,
 } from '@novu/application-generic';
-import { EnvironmentRepository } from '@novu/dal';
+import { EnvironmentRepository, SubscriberTombstoneRepository } from '@novu/dal';
 import { ChannelTypeEnum, InAppProviderIdEnum } from '@novu/shared';
 import { AuthService } from '../../../auth/services/auth.service';
 import { isHmacValidForAnyKey } from '../../../shared/helpers/is-valid-hmac';
@@ -23,7 +23,8 @@ export class InitializeSession {
     private createOrUpdateSubscriberUsecase: CreateOrUpdateSubscriberUseCase,
     private authService: AuthService,
     private selectIntegration: SelectIntegration,
-    private analyticsService: AnalyticsService
+    private analyticsService: AnalyticsService,
+    private subscriberTombstoneRepository?: SubscriberTombstoneRepository
   ) {}
 
   @LogDecorator()
@@ -51,6 +52,11 @@ export class InitializeSession {
 
     // Djinn: HMAC обязателен всегда.
     validateNotificationCenterEncryption(environment, command);
+
+    // Djinn: удалённого подписчика браузер заново не заводит.
+    if (await this.subscriberTombstoneRepository?.exists(environment._id, command.subscriberId)) {
+      throw new NotFoundException('Subscriber was not found');
+    }
 
     const subscriber = await this.createOrUpdateSubscriberUsecase.execute(
       CreateOrUpdateSubscriberCommand.create({

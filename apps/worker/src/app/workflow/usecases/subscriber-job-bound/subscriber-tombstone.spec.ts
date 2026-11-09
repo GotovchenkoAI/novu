@@ -1,48 +1,52 @@
-import { isSubscriberDeleted, markSubscriberDeleted } from '@novu/application-generic';
 import { expect } from 'chai';
 import { SubscriberJobBound } from './subscriber-job-bound.usecase';
 
-const fakeCache = () => {
-  const store = new Map<string, string>();
-
-  return {
-    store,
-    cacheEnabled: () => true,
-    client: {
-      set: async (key: string, value: string) => store.set(key, value),
-      get: async (key: string) => store.get(key) ?? null,
-    },
-  } as never;
-};
-
-describe('Метка удалённого подписчика (Djinn)', () => {
-  it('ключ не содержит subscriberId, метка своя на окружение', async () => {
-    const cache = fakeCache();
-    await markSubscriberDeleted(cache, 'env-1', 'spike-sub');
-
-    expect([...(cache as { store: Map<string, string> }).store.keys()].join()).to.not.contain('spike-sub');
-    expect(await isSubscriberDeleted(cache, 'env-1', 'spike-sub')).to.equal(true);
-    expect(await isSubscriberDeleted(cache, 'env-2', 'spike-sub')).to.equal(false);
-    expect(await isSubscriberDeleted(cache, 'env-1', 'other')).to.equal(false);
-  });
-
-  it('запуск из очереди для удалённого подписчика ничего не создаёт', async () => {
-    const cache = fakeCache();
-    await markSubscriberDeleted(cache, 'env-1', 'spike-sub');
-
+describe('След удалённого подписчика в воркере (Djinn)', () => {
+  const usecaseWith = (exists: boolean | Error) => {
     const usecase = Object.create(SubscriberJobBound.prototype);
-    let touchedWorkflow = false;
+    const touched = { workflow: false };
     usecase.logger = { assign: () => undefined };
-    usecase.cacheService = cache;
+    usecase.subscriberTombstoneRepository = {
+      exists: async () => {
+        if (exists instanceof Error) throw exists;
+
+        return exists;
+      },
+    };
     usecase.getWorkflow = async () => {
-      touchedWorkflow = true;
+      touched.workflow = true;
 
       return null;
     };
 
-    const result = await usecase.execute({ environmentId: 'env-1', subscriber: { subscriberId: 'spike-sub' }, payload: {} });
+    return { usecase, touched };
+  };
+  const job = { environmentId: 'env-1', subscriber: { subscriberId: 'spike-sub' }, payload: {} };
 
-    expect(result).to.equal(undefined);
-    expect(touchedWorkflow).to.equal(false);
+  it('запуск из очереди для удалённого подписчика ничего не создаёт', async () => {
+    const { usecase, touched } = usecaseWith(true);
+
+    expect(await usecase.execute(job)).to.equal(undefined);
+    expect(touched.workflow).to.equal(false);
+  });
+
+  it('след нельзя прочитать: запуск падает, а не идёт дальше', async () => {
+    const { usecase, touched } = usecaseWith(new Error('база недоступна'));
+    let failure: Error | undefined;
+
+    await usecase.execute(job).catch((error: Error) => {
+      failure = error;
+    });
+
+    expect(failure?.message).to.equal('база недоступна');
+    expect(touched.workflow).to.equal(false);
+  });
+
+  it('следа нет: запуск идёт дальше', async () => {
+    const { usecase, touched } = usecaseWith(false);
+
+    await usecase.execute(job).catch(() => undefined);
+
+    expect(touched.workflow).to.equal(true);
   });
 });

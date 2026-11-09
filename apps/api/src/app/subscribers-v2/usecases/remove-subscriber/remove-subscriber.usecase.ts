@@ -22,19 +22,12 @@ export class RemoveSubscriber {
   ) {}
 
   async execute({ environmentId: _environmentId, subscriberId }: RemoveSubscriberCommand) {
-    await this.purgeSubscriberData.markDeleted(_environmentId, subscriberId);
+    // Djinn: подписчик удаляется последним, иначе сбой очистки оставит данные вызова без пути к ним.
+    const { subscriberInternalIds, known } = await this.purgeSubscriberData.execute(_environmentId, subscriberId);
 
-    const subscriberInternalIds = await this.subscriberRepository._model.distinct('_id', {
-      subscriberId,
-      _environmentId,
-    });
-
-    if (subscriberInternalIds.length === 0) {
+    if (!known) {
       throw new NotFoundException({ message: 'Subscriber was not found', externalSubscriberId: subscriberId });
     }
-
-    // Djinn: подписчик удаляется последним, иначе сбой очистки оставит данные вызова без пути к ним.
-    await this.purgeSubscriberData.execute(_environmentId, subscriberId, subscriberInternalIds);
 
     await this.subscriberRepository.withTransaction(async () => {
       /*

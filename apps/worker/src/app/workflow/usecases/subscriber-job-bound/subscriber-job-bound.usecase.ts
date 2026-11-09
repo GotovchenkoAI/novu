@@ -4,7 +4,6 @@ import {
   AnalyticsService,
   CreateNotificationJobs,
   CreateNotificationJobsCommand,
-  CacheService,
   CreateOrUpdateSubscriberCommand,
   CreateOrUpdateSubscriberUseCase,
   FeatureFlagsService,
@@ -14,7 +13,6 @@ import {
   InMemoryLRUCacheStore,
   Instrument,
   InstrumentUsecase,
-  isSubscriberDeleted,
   LogRepository,
   mapEventTypeToTitle,
   PinoLogger,
@@ -27,6 +25,7 @@ import {
   NotificationTemplateEntity,
   NotificationTemplateRepository,
   PreferencesRepository,
+  SubscriberTombstoneRepository,
   SubscriberEntity,
   TopicPreferenceEvaluation,
 } from '@novu/dal';
@@ -75,7 +74,7 @@ export class SubscriberJobBound {
     private featureFlagsService: FeatureFlagsService,
     private inMemoryLRUCacheService: InMemoryLRUCacheService,
     private contextRepository: ContextRepository,
-    private cacheService?: CacheService
+    private subscriberTombstoneRepository?: SubscriberTombstoneRepository
   ) {
     this.logger.setContext(this.constructor.name);
   }
@@ -103,7 +102,8 @@ export class SubscriberJobBound {
       contextKeys,
     } = command;
 
-    if (await isSubscriberDeleted(this.cacheService, environmentId, subscriber.subscriberId)) return;
+    // Djinn: подписчика удалили, пока запуск стоял в очереди. Не завести его заново и не записать данные вызова.
+    if (await this.subscriberTombstoneRepository?.exists(environmentId, subscriber.subscriberId)) return;
 
     let { topics } = command;
 

@@ -3,4 +3,3 @@ export { MockCacheService } from './cache-service.mock';
 export * from './interceptors';
 export * from './invalidate-cache.service';
 export * from './key-builders';
-export * from './subscriber-tombstone';

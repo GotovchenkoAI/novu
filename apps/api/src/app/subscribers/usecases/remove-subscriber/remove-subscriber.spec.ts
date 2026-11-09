@@ -1,6 +1,5 @@
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
-import { CacheService, isSubscriberDeleted } from '@novu/application-generic';
 import {
   ChannelEndpointRepository,
   DalService,
@@ -8,6 +7,8 @@ import {
   JobRepository,
   MessageRepository,
   NotificationRepository,
+  SubscriberRepository,
+  SubscriberTombstoneRepository,
 } from '@novu/dal';
 import { SubscribersService, UserSession } from '@novu/testing';
 import { expect } from 'chai';
@@ -145,7 +146,7 @@ describe('Remove Subscriber', () => {
       (await dal.connection.collection(collection).indexes()).find((index) => index.name === 'createdAt_1')
         ?.expireAfterSeconds;
 
-    for (const collection of ['notifications', 'jobs', 'messages', 'executiondetails']) {
+    for (const collection of ['notifications', 'jobs', 'messages', 'executiondetails', 'subscribertombstones']) {
       expect(await ttlOf(collection)).to.equal(30 * 24 * 60 * 60);
     }
 
@@ -157,20 +158,79 @@ describe('Remove Subscriber', () => {
     await dal.connect(process.env.MONGO_URL as string);
   });
 
-  it('метка удаления ставится и для ещё не заведённого подписчика (Djinn)', async () => {
-    const cache = (useCase as unknown as { purgeSubscriberData: { cacheService: CacheService } }).purgeSubscriberData.cacheService;
+  it('след ставится и для ещё не заведённого подписчика, ответ при этом 404 (Djinn)', async () => {
+    const command = RemoveSubscriberCommand.create({
+      subscriberId: 'queued-subscriber',
+      environmentId: session.environment._id,
+      organizationId: session.organization._id,
+    });
 
-    await useCase
-      .execute(
-        RemoveSubscriberCommand.create({
-          subscriberId: 'queued-subscriber',
-          environmentId: session.environment._id,
-          organizationId: session.organization._id,
-        })
-      )
-      .catch(() => undefined);
+    let failure: unknown;
+    await useCase.execute(command).catch((error) => {
+      failure = error;
+    });
 
-    expect(await isSubscriberDeleted(cache, session.environment._id, 'queued-subscriber')).to.equal(true);
+    expect(failure).to.be.instanceOf(NotFoundException);
+    expect(await new SubscriberTombstoneRepository().exists(session.environment._id, 'queued-subscriber')).to.equal(true);
+    expect(await useCase.execute(command)).to.eql({ acknowledged: true, status: 'deleted' });
+  });
+
+  it('повтор чистит записанное после первого вызова: прежний и заведённый заново _subscriberId (Djinn)', async () => {
+    const subscriberService = new SubscribersService(session.organization._id, session.environment._id);
+    const subscriber = await subscriberService.createSubscriber();
+    const _environmentId = session.environment._id;
+    const command = RemoveSubscriberCommand.create({
+      subscriberId: subscriber.subscriberId,
+      environmentId: _environmentId,
+      organizationId: session.organization._id,
+    });
+    const notifications = new NotificationRepository();
+    const messages = new MessageRepository();
+    const subscribers = new SubscriberRepository();
+    const owned = { _environmentId, _organizationId: session.organization._id };
+
+    await useCase.execute(command);
+
+    // шаг, взятый до удаления, дописал строки под прежним id, а запуск из очереди завёл подписчика заново
+    await messages._model.create({ ...owned, _subscriberId: subscriber._id, subject: 'marker' });
+    const recreated = await subscribers._model.create({ ...owned, subscriberId: subscriber.subscriberId });
+    await notifications._model.create({ ...owned, _subscriberId: recreated._id, payload: { caseTitle: 'marker' } });
+
+    expect(await useCase.execute(command)).to.eql({ acknowledged: true, status: 'deleted' });
+
+    expect(await messages._model.countDocuments({ _environmentId, _subscriberId: subscriber._id })).to.equal(0);
+    expect(await notifications._model.countDocuments({ _environmentId, _subscriberId: recreated._id })).to.equal(0);
+    expect(await subscribers._model.countDocuments({ _environmentId, subscriberId: subscriber.subscriberId })).to.equal(0);
+  });
+
+  it('след нельзя записать: удаление отказывает и ничего не трогает (Djinn)', async () => {
+    const subscriberService = new SubscribersService(session.organization._id, session.environment._id);
+    const subscriber = await subscriberService.createSubscriber();
+    const command = RemoveSubscriberCommand.create({
+      subscriberId: subscriber.subscriberId,
+      environmentId: session.environment._id,
+      organizationId: session.organization._id,
+    });
+    const tombstones = (useCase as unknown as { purgeSubscriberData: { subscriberTombstoneRepository: { mark: unknown } } })
+      .purgeSubscriberData.subscriberTombstoneRepository;
+    const realMark = tombstones.mark;
+    tombstones.mark = async () => {
+      throw new Error('база недоступна');
+    };
+
+    let failure: Error | undefined;
+    await useCase.execute(command).catch((error: Error) => {
+      failure = error;
+    });
+    tombstones.mark = realMark;
+
+    expect(failure?.message).to.equal('база недоступна');
+    expect(
+      await new SubscriberRepository()._model.countDocuments({
+        _environmentId: session.environment._id,
+        subscriberId: subscriber.subscriberId,
+      })
+    ).to.equal(1);
   });
 
   it('should throw a not found exception if subscriber to remove does not exist', async () => {

@@ -1,5 +1,5 @@
 import { Injectable, Logger, Module } from '@nestjs/common';
-import { CacheService, markSubscriberDeleted, StorageService } from '@novu/application-generic';
+import { StorageService } from '@novu/application-generic';
 import {
   ChannelConnectionRepository,
   ChannelEndpointRepository,
@@ -7,6 +7,8 @@ import {
   JobRepository,
   MessageRepository,
   NotificationRepository,
+  SubscriberRepository,
+  SubscriberTombstoneRepository,
 } from '@novu/dal';
 import { SharedModule } from '../../../shared/shared.module';
 
@@ -25,15 +27,23 @@ export class PurgeSubscriberData {
     private channelEndpointRepository: ChannelEndpointRepository,
     private channelConnectionRepository: ChannelConnectionRepository,
     private storageService: StorageService,
-    private cacheService: CacheService
+    private subscriberRepository: SubscriberRepository,
+    private subscriberTombstoneRepository: SubscriberTombstoneRepository
   ) {}
 
-  /** Запуск мог стоять в очереди: он не должен завести подписчика заново. Ставится и когда записи ещё нет. */
-  async markDeleted(environmentId: string, subscriberId: string): Promise<void> {
-    await markSubscriberDeleted(this.cacheService, environmentId, subscriberId);
-  }
+  /**
+   * След пишется первым: если его нельзя записать, удаление отказывает. Повтор находит и прежние
+   * внутренние id, и заведённого заново подписчика, поэтому чистит записанное после первого вызова.
+   */
+  async execute(environmentId: string, subscriberId: string): Promise<{ subscriberInternalIds: unknown[]; known: boolean }> {
+    const current: unknown[] = await this.subscriberRepository._model.distinct('_id', {
+      subscriberId,
+      _environmentId: environmentId,
+    });
+    const earlier = await this.subscriberTombstoneRepository.find(environmentId, subscriberId);
+    await this.subscriberTombstoneRepository.mark(environmentId, subscriberId, current);
 
-  async execute(environmentId: string, subscriberId: string, subscriberInternalIds: unknown[]): Promise<void> {
+    const subscriberInternalIds = [...current, ...(earlier?._subscriberIds ?? [])];
     const byInternalId = { _environmentId: environmentId, _subscriberId: { $in: subscriberInternalIds } } as never;
     const byExternalId = { _environmentId: environmentId, subscriberId } as never;
 
@@ -44,6 +54,8 @@ export class PurgeSubscriberData {
     await this.messageRepository.delete(byInternalId);
     await this.channelEndpointRepository.delete(byExternalId);
     await this.channelConnectionRepository.delete(byExternalId);
+
+    return { subscriberInternalIds, known: current.length > 0 || earlier !== null };
   }
 
   /** Файл живёт в хранилище, пока идёт цепочка; цепочка удалённого подписчика уже не дойдёт. */

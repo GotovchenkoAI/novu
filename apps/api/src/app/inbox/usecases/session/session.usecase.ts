@@ -34,6 +34,7 @@ import {
   MessageTemplateRepository,
   NotificationTemplateRepository,
   PreferencesRepository,
+  SubscriberTombstoneRepository,
   SubscriberEntity,
 } from '@novu/dal';
 import {
@@ -111,7 +112,8 @@ export class Session {
     private featureFlagsService: FeatureFlagsService,
     private getSubscriberSchedule: GetSubscriberSchedule,
     private updatePreferencesUsecase: UpdatePreferences,
-    private keylessAbuseGuard: KeylessAbuseGuardService
+    private keylessAbuseGuard: KeylessAbuseGuardService,
+    private subscriberTombstoneRepository?: SubscriberTombstoneRepository
   ) {
     this.logger.setContext(this.constructor.name);
   }
@@ -164,6 +166,11 @@ export class Session {
       environment._organizationId,
       command.requestData.context
     );
+
+    // Djinn: удалённого подписчика браузер заново не заводит.
+    if (await this.subscriberTombstoneRepository?.exists(environment._id, subscriber.subscriberId)) {
+      throw new NotFoundException('Subscriber was not found');
+    }
 
     const subscriberEntity = await this.createSubscriber.execute(
       CreateOrUpdateSubscriberCommand.create({

@@ -330,6 +330,32 @@ describe('Session', () => {
     expect(createSubscriber.execute.called).to.equal(false);
   });
 
+  it('удалённого подписчика браузер заново не заводит (Djinn)', async () => {
+    const secretKey = 'mock-secret-key';
+    environmentRepository.findEnvironmentByIdentifier.resolves({
+      _id: 'env-id',
+      _organizationId: 'org-id',
+      name: 'Production',
+      apiKeys: [{ key: secretKey }],
+    } as any);
+    selectIntegration.execute.resolves({ ...mockIntegration, credentials: { hmac: true } });
+    (session as any).subscriberTombstoneRepository = { exists: async () => true };
+
+    try {
+      await session.execute({
+        requestData: {
+          applicationIdentifier: 'app',
+          subscriber: { subscriberId: 'subscriber-1' },
+          subscriberHash: createHash(secretKey, 'subscriber-1'),
+        },
+      } as any);
+      throw new Error('должно было отказать');
+    } catch (error) {
+      expect((error as Error).message).to.equal('Subscriber was not found');
+    }
+    expect(createSubscriber.execute.called).to.equal(false);
+  });
+
   it('не даёт браузеру менять профиль подписчика даже с верным хэшем (Djinn)', async () => {
     const secretKey = 'mock-secret-key';
     const hash = createHash(secretKey, 'subscriber-1');
