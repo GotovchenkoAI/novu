@@ -1,5 +1,6 @@
 import mongoose, { Schema } from 'mongoose';
 import { schemaOptions } from '../schema-default.options';
+import { getRetentionIndexOptions } from '../../shared/consts/ttl';
 import { JobDBModel, JobStatusEnum } from './job.entity';
 
 const jobSchema = new Schema<JobDBModel>(
@@ -424,7 +425,7 @@ jobSchema.index(
 /*
  * This index was created to push entries to Online Archive
  */
-jobSchema.index({ createdAt: 1 });
+jobSchema.index({ createdAt: 1 }, getRetentionIndexOptions());
 
 jobSchema.index(
   {

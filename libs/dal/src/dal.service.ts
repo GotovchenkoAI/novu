@@ -1,5 +1,6 @@
 import { Logger } from '@nestjs/common';
 import mongoose, { Connection, ConnectOptions } from 'mongoose';
+import { getRetentionIndexOptions, RETENTION_COLLECTIONS } from './shared/consts/ttl';
 import { AuthMechanism } from './types';
 
 const MONGODB_CONTEXT = '[@novu/dal]';
@@ -25,6 +26,7 @@ export class DalService {
     const instance = await mongoose.connect(url, finalConfig);
 
     this.connection = instance.connection;
+    await this.applyRetention();
 
     mongoose.connection.on('connected', () => Logger.debug('[@novu/dal]: Mongo connected', MONGODB_CONTEXT));
     mongoose.connection.on('disconnected', () => Logger.debug('[@novu/dal]: Mongo disconnected', MONGODB_CONTEXT));
@@ -36,6 +38,23 @@ export class DalService {
     );
 
     return this.connection;
+  }
+
+  /** Djinn: индекс уже есть на действующей базе или срок поменяли — схема этого сама не применит. */
+  private async applyRetention() {
+    const { expireAfterSeconds } = getRetentionIndexOptions();
+    const db = this.connection.db;
+
+    for (const collection of RETENTION_COLLECTIONS) {
+      try {
+        await db?.command({ collMod: collection, index: { keyPattern: { createdAt: 1 }, expireAfterSeconds } });
+      } catch {
+        await db
+          ?.collection(collection)
+          .createIndex({ createdAt: 1 }, { expireAfterSeconds })
+          .catch((err: Error) => Logger.error(`[@novu/dal]: Retention index: ${err.message}`, MONGODB_CONTEXT));
+      }
+    }
   }
 
   isConnected(): boolean {

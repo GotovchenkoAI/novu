@@ -7,6 +7,7 @@ import {
 } from '@novu/application-generic';
 import { MessageRepository, PreferencesRepository, SubscriberRepository, TopicSubscribersRepository } from '@novu/dal';
 
+import { PurgeSubscriberData } from './purge-subscriber-data';
 import { RemoveSubscriberCommand } from './remove-subscriber.command';
 
 @Injectable()
@@ -16,7 +17,8 @@ export class RemoveSubscriber {
     private subscriberRepository: SubscriberRepository,
     private topicSubscribersRepository: TopicSubscribersRepository,
     private preferenceRepository: PreferencesRepository,
-    private messageRepository: MessageRepository
+    private messageRepository: MessageRepository,
+    private purgeSubscriberData: PurgeSubscriberData
   ) {}
 
   async execute({ environmentId: _environmentId, subscriberId }: RemoveSubscriberCommand) {
@@ -73,6 +75,8 @@ export class RemoveSubscriber {
         _environmentId,
       });
     });
+
+    await this.purgeSubscriberData.execute(_environmentId, subscriberId, subscriberInternalIds);
 
     return {
       acknowledged: true,

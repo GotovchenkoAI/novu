@@ -7,6 +7,7 @@ import {
 } from '@novu/application-generic';
 import { PreferencesRepository, SubscriberRepository, TopicSubscribersRepository } from '@novu/dal';
 
+import { PurgeSubscriberData } from '../../../subscribers-v2/usecases/remove-subscriber/purge-subscriber-data';
 import { RemoveSubscriberCommand } from './remove-subscriber.command';
 
 @Injectable()
@@ -15,7 +16,8 @@ export class RemoveSubscriber {
     private invalidateCache: InvalidateCacheService,
     private subscriberRepository: SubscriberRepository,
     private topicSubscribersRepository: TopicSubscribersRepository,
-    private preferenceRepository: PreferencesRepository
+    private preferenceRepository: PreferencesRepository,
+    private purgeSubscriberData: PurgeSubscriberData
   ) {}
 
   async execute({ environmentId: _environmentId, subscriberId }: RemoveSubscriberCommand) {
@@ -67,6 +69,8 @@ export class RemoveSubscriber {
         _subscriberId: { $in: subscriberInternalIds },
       });
     });
+
+    await this.purgeSubscriberData.execute(_environmentId, subscriberId, subscriberInternalIds);
 
     return {
       acknowledged: true,

@@ -2,6 +2,7 @@ import { ActorTypeEnum, SeverityLevelEnum } from '@novu/shared';
 import mongoose, { Schema } from 'mongoose';
 
 import { schemaOptions } from '../schema-default.options';
+import { getRetentionIndexOptions } from '../../shared/consts/ttl';
 import { MessageDBModel } from './message.entity';
 
 const messageSchema = new Schema<MessageDBModel>(
@@ -332,7 +333,7 @@ messageSchema.index({
 /*
  * This index was created to push entries to Online Archive
  */
-messageSchema.index({ createdAt: 1 });
+messageSchema.index({ createdAt: 1 }, getRetentionIndexOptions());
 
 /**
  * todo: remove deleted field after all the soft deletes are removed task nv-5688

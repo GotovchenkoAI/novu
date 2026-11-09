@@ -6,6 +6,7 @@ import { ChannelEndpointsModule } from '../channel-endpoints/channel-endpoints.m
 import { OutboundWebhooksModule } from '../outbound-webhooks/outbound-webhooks.module';
 import { PreferencesModule } from '../preferences';
 import { SharedModule } from '../shared/shared.module';
+import { PurgeSubscriberDataModule } from '../subscribers-v2/usecases/remove-subscriber/purge-subscriber-data';
 import { WidgetsModule } from '../widgets/widgets.module';
 import { SubscribersV1Controller } from './subscribersV1.controller';
 import { USE_CASES } from './usecases';
@@ -19,6 +20,7 @@ import { USE_CASES } from './usecases';
     PreferencesModule,
     ChannelEndpointsModule,
     OutboundWebhooksModule.forRoot(),
+    PurgeSubscriberDataModule,
   ],
   controllers: [SubscribersV1Controller],
   providers: [...USE_CASES, CommunityOrganizationRepository],

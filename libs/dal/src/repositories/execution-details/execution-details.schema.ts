@@ -1,6 +1,7 @@
 import { ExecutionDetailsSourceEnum, ExecutionDetailsStatusEnum } from '@novu/shared';
 import mongoose, { Schema } from 'mongoose';
 import { schemaOptions } from '../schema-default.options';
+import { getRetentionIndexOptions } from '../../shared/consts/ttl';
 import { ExecutionDetailsDBModel } from './execution-details.entity';
 
 const executionDetailsSchema = new Schema<ExecutionDetailsDBModel>(
@@ -107,7 +108,7 @@ executionDetailsSchema.index({
 /*
  * This index was created to push entries to Online Archive
  */
-executionDetailsSchema.index({ createdAt: 1 });
+executionDetailsSchema.index({ createdAt: 1 }, getRetentionIndexOptions());
 
 export const ExecutionDetails =
   (mongoose.models.ExecutionDetails as mongoose.Model<ExecutionDetailsDBModel>) ||

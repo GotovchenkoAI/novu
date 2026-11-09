@@ -1,6 +1,7 @@
 import { SeverityLevelEnum } from '@novu/shared';
 import mongoose, { Schema } from 'mongoose';
 import { schemaOptions } from '../schema-default.options';
+import { getRetentionIndexOptions } from '../../shared/consts/ttl';
 import { NotificationDBModel } from './notification.entity';
 
 const notificationSchema = new Schema<NotificationDBModel>(
@@ -206,7 +207,7 @@ notificationSchema.index(
 /*
  * This index was created to push entries to Online Archive
  */
-notificationSchema.index({ createdAt: 1 });
+notificationSchema.index({ createdAt: 1 }, getRetentionIndexOptions());
 
 export const Notification =
   (mongoose.models.Notification as mongoose.Model<NotificationDBModel>) ||
