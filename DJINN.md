@@ -10,16 +10,19 @@
 |---|---|
 | Клейма нет в письме и в ленте | `get-organization-settings.usecase.ts` всегда отвечает `removeNovuBranding: true` |
 | Пауза входа SMTP | `smtp-login-gate.service.ts`; вход по одному на интеграцию, `EAUTH` закрывает его на растущую паузу, шаг откладывается. `SMTP_LOGIN_PAUSES_SECONDS`, по умолчанию `900,1800,3600` |
-| Срок хранения | TTL на `notifications`, `jobs`, `messages`, `executiondetails`. `NOTIFICATION_RETENTION_DAYS`, по умолчанию 30, применяется и к действующей базе при старте |
+| Срок хранения | TTL на `notifications`, `jobs`, `messages`, `executiondetails`. `NOTIFICATION_RETENTION_DAYS`, по умолчанию 30, применяется и к действующей базе при старте. Задавать всем трём сервисам (`api`, `worker`, `ws`): применяет каждый, побеждает запущенный последним |
 | Удаление подписчика | `purge-subscriber-data.ts`: `notifications`, `jobs`, `executiondetails`, `messages`, `channelendpoints`, `channelconnections`, файлы вложений |
+| Запуск в очереди при удалении | `subscriber-tombstone.ts`: метка на сутки, воркер пропускает запуск. `subscriberId` после удаления не использовать повторно сутки |
 | Адрес Telegram | `TELEGRAM_API_BASE_URL` теперь и для отправки |
 | Внешние обращения | модуля телеметрии воркера нет; панель без внешних шрифтов и шаблонов; `mongosh` в compose без сниппетов и телеметрии |
 | Профиль из браузера | `/v1/inbox/session` передаёт только `subscriberId`, `allowUpdate: false` |
 | Вход и регистрация | HMAC обязателен всегда; регистрация закрыта, пока не задано `DISABLE_USER_REGISTRATION=false` |
 | Завершение контейнера | `node` под `dumb-init`: иначе PID 1 не умирает от повторённого SIGTERM |
+| Запуск воркера | воркер создаётся на паузе, снимает её `startAppInfra`: иначе задачи из очереди падают до готовности приложения и теряются |
+| Рестарт API | шаг при сетевой ошибке моста ждёт 15-30 с, до 40 раз |
 | Образы | `.github/workflows/publish-djinn-images.yml`: `ghcr.io/gotovchenkoai/novu-{api,worker,ws,dashboard}`, amd64 и arm64, тег `sha-<коммит>`, отпечаток в сводке запуска |
 
-## Ядро: 38 файлов, +336 / -271 строк
+## Ядро: 43 файлов, +395 / -272 строк
 
 | Файл | Добавлено | Удалено |
 |---|---|---|
@@ -31,10 +34,10 @@
 | `apps/api/src/app/integrations/usecases/consume-integration-store-telegram-mobile-link/consume-integration-store-telegram-mobile-link.usecase.ts` | +2 | -1 |
 | `apps/api/src/app/organization/usecases/get-organization-settings/get-organization-settings.usecase.ts` | +2 | -1 |
 | `apps/api/src/app/subscribers-v2/subscribers.module.ts` | +2 | -1 |
-| `apps/api/src/app/subscribers-v2/usecases/remove-subscriber/purge-subscriber-data.ts` | +63 | -0 |
-| `apps/api/src/app/subscribers-v2/usecases/remove-subscriber/remove-subscriber.usecase.ts` | +5 | -1 |
+| `apps/api/src/app/subscribers-v2/usecases/remove-subscriber/purge-subscriber-data.ts` | +69 | -0 |
+| `apps/api/src/app/subscribers-v2/usecases/remove-subscriber/remove-subscriber.usecase.ts` | +7 | -1 |
 | `apps/api/src/app/subscribers/subscribersV1.module.ts` | +2 | -0 |
-| `apps/api/src/app/subscribers/usecases/remove-subscriber/remove-subscriber.usecase.ts` | +5 | -1 |
+| `apps/api/src/app/subscribers/usecases/remove-subscriber/remove-subscriber.usecase.ts` | +7 | -1 |
 | `apps/api/src/app/widgets/usecases/initialize-session/initialize-session.usecase.ts` | +2 | -3 |
 | `apps/api/src/config/env.validators.ts` | +1 | -1 |
 | `apps/dashboard/index.html` | +0 | -18 |
@@ -48,29 +51,36 @@
 | `apps/worker/src/app/telemetry/utils/machine.utils.ts` | +0 | -45 |
 | `apps/worker/src/app/telemetry/utils/sendDataToNovuTrace.utils.ts` | +0 | -19 |
 | `apps/worker/src/app/workflow/usecases/add-job/add-job.usecase.ts` | +1 | -1 |
-| `apps/worker/src/app/workflow/usecases/run-job/run-job.usecase.ts` | +19 | -0 |
+| `apps/worker/src/app/workflow/usecases/run-job/run-job.usecase.ts` | +33 | -0 |
 | `apps/worker/src/app/workflow/usecases/send-message/send-message-email.usecase.ts` | +39 | -1 |
 | `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.service.ts` | +113 | -0 |
+| `apps/worker/src/app/workflow/usecases/subscriber-job-bound/subscriber-job-bound.usecase.ts` | +6 | -1 |
 | `apps/worker/src/app/workflow/workflow.module.ts` | +2 | -1 |
 | `apps/ws/Dockerfile` | +2 | -1 |
 | `docker/community/docker-compose.yml` | +11 | -0 |
+| `libs/application-generic/src/services/cache/index.ts` | +1 | -0 |
+| `libs/application-generic/src/services/cache/subscriber-tombstone.ts` | +19 | -0 |
+| `libs/application-generic/src/services/workers/worker-base.service.ts` | +7 | -0 |
 | `libs/dal/src/dal.service.ts` | +19 | -0 |
 | `libs/dal/src/repositories/execution-details/execution-details.schema.ts` | +2 | -1 |
 | `libs/dal/src/repositories/job/job.schema.ts` | +2 | -1 |
 | `libs/dal/src/repositories/message/message.schema.ts` | +2 | -1 |
 | `libs/dal/src/repositories/notification/notification.schema.ts` | +2 | -1 |
 | `libs/dal/src/shared/consts/ttl.ts` | +11 | -0 |
+| `libs/testing/src/user.session.ts` | +2 | -0 |
 | `packages/providers/src/lib/chat/telegram/telegram.provider.ts` | +2 | -1 |
 
-## Тесты: 6 файлов, +281 / -5 строк
+## Тесты: 8 файлов, +371 / -5 строк
 
 | Файл | Добавлено | Удалено |
 |---|---|---|
 | `apps/api/src/app/auth/usecases/register/user-register.spec.ts` | +24 | -0 |
 | `apps/api/src/app/inbox/usecases/session/session.spec.ts` | +65 | -5 |
 | `apps/api/src/app/organization/usecases/get-organization-settings/get-organization-settings.spec.ts` | +18 | -0 |
-| `apps/api/src/app/subscribers/usecases/remove-subscriber/remove-subscriber.spec.ts` | +80 | -0 |
+| `apps/api/src/app/subscribers/usecases/remove-subscriber/remove-subscriber.spec.ts` | +97 | -0 |
+| `apps/worker/src/app/workflow/usecases/run-job/bridge-retry.spec.ts` | +25 | -0 |
 | `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.spec.ts` | +73 | -0 |
+| `apps/worker/src/app/workflow/usecases/subscriber-job-bound/subscriber-tombstone.spec.ts` | +48 | -0 |
 | `packages/providers/src/lib/chat/telegram/telegram.provider.spec.ts` | +21 | -0 |
 
 ## Сборка: 1 файл, +179 / -0 строк
