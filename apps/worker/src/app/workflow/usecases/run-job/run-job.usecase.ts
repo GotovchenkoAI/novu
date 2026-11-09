@@ -50,6 +50,7 @@ import { ExecuteBridgeJob, ExecuteBridgeJobCommand } from '../execute-bridge-job
 import { ProcessUnsnoozeJob, ProcessUnsnoozeJobCommand } from '../process-unsnooze-job';
 import { SendMessage, SendMessageCommand } from '../send-message';
 import { SendMessageStatus } from '../send-message/send-message-type.usecase';
+import { SmtpLoginDeferred } from '../send-message/smtp-login-gate.service';
 import { SetJobAsFailedCommand } from '../update-job-status/set-job-as.command';
 import { SetJobAsFailed } from '../update-job-status/set-job-as-failed.usecase';
 import { RunJobCommand } from './run-job.command';
@@ -402,6 +403,24 @@ export class RunJob {
         await this.conditionallyUpdateDeliveryLifecycle(job, WorkflowRunStatusEnum.PROCESSING, workflow, notification);
       }
     } catch (caughtError: unknown) {
+      if (caughtError instanceof SmtpLoginDeferred) {
+        // Djinn: вход в SMTP закрыт на паузу. Шаг ждёт её и остаётся живым; счётчик даёт новый jobId в очереди.
+        const scheduleExtensionsCount = (job.scheduleExtensionsCount ?? 0) + 1;
+        await this.jobRepository.updateOne(
+          { _id: job._id, _environmentId: job._environmentId },
+          { $set: { status: JobStatusEnum.DELAYED, scheduleExtensionsCount } }
+        );
+        await this.addJobUsecase.queueJob({
+          job: { ...job, status: JobStatusEnum.DELAYED, scheduleExtensionsCount },
+          delay: caughtError.retryInMs,
+          untilDate: null,
+        });
+        isJobExtendedToSubscriberSchedule = true;
+        shouldQueueNextJob = false;
+
+        return;
+      }
+
       error = caughtError as Error;
       await this.stepRunRepository.create(job, {
         status: JobStatusEnum.FAILED,

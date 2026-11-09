@@ -1116,7 +1116,7 @@ export class AddJob {
       options,
     });
 
-    if (delay) {
+    if (delay && job.type !== StepTypeEnum.EMAIL) {
       await this.createDelayExecutionDetails(job, delay, untilDate, timezone);
     }
   }

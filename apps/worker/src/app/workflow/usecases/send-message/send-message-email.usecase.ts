@@ -52,6 +52,7 @@ import { PlatformException } from '../../../shared/utils';
 import { combineProviderOverrides, SendMessageBase } from './send-message.base';
 import { SendMessageChannelCommand } from './send-message-channel.command';
 import { SendMessageResult, SendMessageStatus } from './send-message-type.usecase';
+import { isSmtpLoginRefused, SmtpLoginDeferred, SmtpLoginGate } from './smtp-login-gate.service';
 
 const LOG_CONTEXT = 'SendMessageEmail';
 
@@ -73,7 +74,8 @@ export class SendMessageEmail extends SendMessageBase {
     private featureFlagService: FeatureFlagsService,
     private getLayoutUseCaseV0: GetLayoutUseCaseV0,
     private sendWebhookMessage: SendWebhookMessage,
-    private resolveAgentInboundAddresses: ResolveAgentInboundAddresses
+    private resolveAgentInboundAddresses: ResolveAgentInboundAddresses,
+    private smtpLoginGate?: SmtpLoginGate
   ) {
     super(
       messageRepository,
@@ -158,6 +160,11 @@ export class SendMessageEmail extends SendMessageBase {
         status: SendMessageStatus.FAILED,
         errorMessage: DetailEnum.SUBSCRIBER_NO_ACTIVE_INTEGRATION,
       };
+    }
+
+    if (integration.providerId === EmailProviderIdEnum.CustomSMTP) {
+      const retryInMs = await this.smtpLoginGate!.closedFor(integration);
+      if (retryInMs !== null) throw new SmtpLoginDeferred(retryInMs);
     }
 
     const bridgeOutputs = command.bridgeData?.outputs;
@@ -586,6 +593,14 @@ export class SendMessageEmail extends SendMessageBase {
   ): Promise<SendMessageResult> {
     const mailFactory = new MailFactory();
     const mailHandler = mailFactory.getHandler(this.buildFactoryIntegration(integration), mailData.from);
+    const isCustomSmtp = integration.providerId === EmailProviderIdEnum.CustomSMTP;
+    const loginPass = isCustomSmtp ? await this.smtpLoginGate!.enter(integration) : undefined;
+
+    if (loginPass && !loginPass.allowed) {
+      await this.messageRepository.delete({ _id: message._id, _environmentId: command.environmentId });
+
+      throw new SmtpLoginDeferred(loginPass.retryInMs);
+    }
 
     try {
       const result = await mailHandler.send({
@@ -597,6 +612,8 @@ export class SendMessageEmail extends SendMessageBase {
           integration.providerId
         ),
       });
+
+      if (isCustomSmtp) await this.smtpLoginGate!.accepted(integration);
 
       await this.sendWebhookMessage.execute({
         eventType: WebhookEventEnum.MESSAGE_SENT,
@@ -647,6 +664,25 @@ export class SendMessageEmail extends SendMessageBase {
         status: SendMessageStatus.SUCCESS,
       };
     } catch (error) {
+      if (isCustomSmtp && isSmtpLoginRefused(error)) {
+        const retryInMs = await this.smtpLoginGate!.refused(integration);
+        await this.createExecutionDetails.execute(
+          CreateExecutionDetailsCommand.create({
+            ...CreateExecutionDetailsCommand.getDetailsFromJob(command.job),
+            messageId: message._id,
+            detail: DetailEnum.PROVIDER_ERROR,
+            source: ExecutionDetailsSourceEnum.INTERNAL,
+            status: ExecutionDetailsStatusEnum.FAILED,
+            isTest: false,
+            isRetry: true,
+            raw: safeJsonStringify({ code: error.code, responseCode: error.responseCode, retryInMs }),
+          })
+        );
+        await this.messageRepository.delete({ _id: message._id, _environmentId: command.environmentId });
+
+        throw new SmtpLoginDeferred(retryInMs);
+      }
+
       await this.sendErrorStatus(
         message,
         'error',
@@ -695,6 +731,8 @@ export class SendMessageEmail extends SendMessageBase {
         status: SendMessageStatus.FAILED,
         errorMessage: DetailEnum.PROVIDER_ERROR,
       };
+    } finally {
+      if (loginPass) await this.smtpLoginGate!.leave(loginPass);
     }
   }
 

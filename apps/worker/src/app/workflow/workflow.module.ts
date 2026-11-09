@@ -89,6 +89,7 @@ import { NoopSendWebhookMessage } from './usecases/noop-send-webhook-message.use
 import { ResolveChannelEndpoints } from './usecases/send-message/channel-endpoint-resolution/resolve-channel-endpoints.usecase';
 import { ExecuteCodeFirstCustomStep } from './usecases/send-message/execute-code-first-custom-step.usecase';
 import { ExecuteHttpRequestStep } from './usecases/send-message/execute-http-request-step.usecase';
+import { SmtpLoginGate } from './usecases/send-message/smtp-login-gate.service';
 import { StoreSubscriberJobs } from './usecases/store-subscriber-jobs';
 import { SubscriberJobBound } from './usecases/subscriber-job-bound/subscriber-job-bound.usecase';
 
@@ -233,7 +234,7 @@ const USE_CASES = [
   ResolveChannelEndpoints,
 ];
 
-const PROVIDERS: Provider[] = [RedisThrottleService, MsTeamsTokenService, RotatingConnectionTokenService];
+const PROVIDERS: Provider[] = [RedisThrottleService, MsTeamsTokenService, RotatingConnectionTokenService, SmtpLoginGate];
 const activeWorkersToken: any = {
   provide: 'ACTIVE_WORKERS',
   useFactory: (...args: any[]) => {
