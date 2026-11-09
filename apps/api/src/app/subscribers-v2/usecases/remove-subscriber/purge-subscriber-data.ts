@@ -60,16 +60,24 @@ export class PurgeSubscriberData {
 
   /** Файл живёт в хранилище, пока идёт цепочка; цепочка удалённого подписчика уже не дойдёт. */
   private async deleteAttachments(filter: never): Promise<void> {
-    const notifications = await this.notificationRepository.find(filter, 'payload.attachments');
-    const paths = notifications.flatMap((notification) =>
-      ((notification.payload?.attachments ?? []) as { storagePath?: string }[]).map((file) => file.storagePath)
-    );
+    await deleteAttachmentsOf(this.notificationRepository, filter, this.storageService);
+  }
+}
 
-    for (const path of new Set(paths.filter(Boolean) as string[])) {
-      await this.storageService.deleteFile(path).catch((error: Error) => {
-        Logger.warn(`Attachment was not removed: ${error.name}`, PurgeSubscriberData.name);
-      });
-    }
+export async function deleteAttachmentsOf(
+  notificationRepository: NotificationRepository,
+  filter: never,
+  storageService: StorageService
+): Promise<void> {
+  const notifications = await notificationRepository.find(filter, 'payload.attachments');
+  const paths = notifications.flatMap((notification) =>
+    ((notification.payload?.attachments ?? []) as { storagePath?: string }[]).map((file) => file.storagePath)
+  );
+
+  for (const path of new Set(paths.filter(Boolean) as string[])) {
+    await storageService.deleteFile(path).catch((error: Error) => {
+      Logger.warn(`Attachment was not removed: ${error.name}`, PurgeSubscriberData.name);
+    });
   }
 }
 

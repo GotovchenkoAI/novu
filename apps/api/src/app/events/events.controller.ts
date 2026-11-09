@@ -34,6 +34,8 @@ import {
   TriggerEventToAllRequestDto,
 } from './dtos';
 import { CancelDelayed, CancelDelayedCommand } from './usecases/cancel-delayed';
+import { PurgeTransaction } from './usecases/purge-transaction/purge-transaction.usecase';
+import { PurgeTransactionCommand } from './usecases/purge-transaction/purge-transaction.command';
 import { ParseEventRequest, ParseEventRequestMulticastCommand } from './usecases/parse-event-request';
 import { ProcessBulkTrigger, ProcessBulkTriggerCommand } from './usecases/process-bulk-trigger';
 import { SendTestEmail, SendTestEmailCommand } from './usecases/send-test-email';
@@ -61,6 +63,7 @@ function RequestAnalytics(strategy: AnalyticsStrategyEnum = AnalyticsStrategyEnu
 export class EventsController {
   constructor(
     private cancelDelayedUsecase: CancelDelayed,
+    private purgeTransactionUsecase: PurgeTransaction,
     private triggerEventToAll: TriggerEventToAll,
     private sendTestEmail: SendTestEmail,
     private parseEventRequest: ParseEventRequest,
@@ -264,6 +267,22 @@ export class EventsController {
   async cancel(@UserSession() user: UserSessionData, @Param('transactionId') transactionId: string): Promise<boolean> {
     return await this.cancelDelayedUsecase.execute(
       CancelDelayedCommand.create({
+        userId: user._id,
+        environmentId: user.environmentId,
+        organizationId: user.organizationId,
+        transactionId,
+      })
+    );
+  }
+
+  // Djinn: дело удалено при живом аккаунте. Вызов можно повторять, он не падает на пустом.
+  @ExternalApiAccessible()
+  @Delete('/trigger/:transactionId/data')
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.EVENT_WRITE)
+  async purgeTransaction(@UserSession() user: UserSessionData, @Param('transactionId') transactionId: string) {
+    return await this.purgeTransactionUsecase.execute(
+      PurgeTransactionCommand.create({
         userId: user._id,
         environmentId: user.environmentId,
         organizationId: user.organizationId,
