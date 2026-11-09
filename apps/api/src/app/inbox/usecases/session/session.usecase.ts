@@ -41,7 +41,6 @@ import {
   ChannelTypeEnum,
   ContextPayload,
   ControlValuesLevelEnum,
-  CustomDataType,
   EnvironmentEnum,
   EnvironmentTypeEnum,
   FeatureFlagsKeysEnum,
@@ -65,7 +64,6 @@ import { KeylessAbuseGuardService } from '../../../keyless/keyless-abuse-guard.s
 import { GetOrganizationSettingsCommand } from '../../../organization/usecases/get-organization-settings/get-organization-settings.command';
 import { GetOrganizationSettings } from '../../../organization/usecases/get-organization-settings/get-organization-settings.usecase';
 import { ScheduleDto } from '../../../shared/dtos/schedule';
-import { isHmacValidForAnyKey } from '../../../shared/helpers/is-valid-hmac';
 import { SubscriberDto, SubscriberSessionRequestDto } from '../../dtos/subscriber-session-request.dto';
 import { SubscriberSessionResponseDto } from '../../dtos/subscriber-session-response.dto';
 import {
@@ -173,19 +171,9 @@ export class Session {
         environmentId: environment._id,
         organizationId: environment._organizationId,
         subscriberId: subscriber.subscriberId,
-        firstName: subscriber.firstName,
-        lastName: subscriber.lastName,
-        phone: subscriber.phone,
-        email: subscriber.email,
-        avatar: subscriber.avatar,
-        locale: subscriber.locale,
-        data: subscriber.data as CustomDataType,
-        timezone: subscriber.timezone,
-        allowUpdate: isHmacValidForAnyKey(
-          environmentApiKeys,
-          subscriber.subscriberId,
-          command.requestData.subscriberHash
-        ),
+        // Djinn: профиль подписчика заводит только сервер. Хэш лежит в браузере человека, значит
+        // браузер не вправе менять ни адрес, ни другие поля, иначе письма уйдут на чужой адрес.
+        allowUpdate: false,
       })
     );
 

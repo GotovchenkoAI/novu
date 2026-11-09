@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   AnalyticsService,
   CreateOrUpdateSubscriberUseCase,
+  createHash,
   FeatureFlagsService,
   GetSubscriberSchedule,
   PinoLogger,
@@ -307,6 +308,42 @@ describe('Session', () => {
 
     expect(validateHmacEncryptionStub.calledOnce).to.be.true;
     validateHmacEncryptionStub.restore();
+  });
+
+  it('не даёт браузеру менять профиль подписчика даже с верным хэшем (Djinn)', async () => {
+    const secretKey = 'mock-secret-key';
+    const hash = createHash(secretKey, 'subscriber-1');
+    environmentRepository.findEnvironmentByIdentifier.resolves({
+      _id: 'env-id',
+      _organizationId: 'org-id',
+      name: 'Production',
+      apiKeys: [{ key: secretKey }],
+    } as any);
+    selectIntegration.execute.resolves({ ...mockIntegration, credentials: { hmac: true } });
+    createSubscriber.execute.resolves({ _id: 'internal', subscriberId: 'subscriber-1' } as any);
+    notificationsCount.execute.resolves({ data: [{ count: 0, filter: {} }] });
+    getSubscriberSchedule.execute.resolves(undefined);
+    getOrganizationSettingsUsecase.execute.resolves({
+      removeNovuBranding: true,
+      defaultLocale: 'en_US',
+      targetLocales: [],
+    });
+    organizationRepository.findById.resolves({ _id: 'org' } as any);
+    messageRepository.getCountBySeverity.resolves([]);
+    authService.getSubscriberWidgetToken.resolves('token');
+
+    await session.execute({
+      requestData: {
+        applicationIdentifier: 'app',
+        subscriber: { subscriberId: 'subscriber-1', email: 'attacker@example.com', firstName: 'Подмена' },
+        subscriberHash: hash,
+      },
+    } as any);
+
+    const command = createSubscriber.execute.firstCall.args[0];
+    expect(command.allowUpdate).to.equal(false);
+    expect(command.email).to.equal(undefined);
+    expect(command.firstName).to.equal(undefined);
   });
 
   it('should return correct removeNovuBranding value when set on the organization', async () => {
