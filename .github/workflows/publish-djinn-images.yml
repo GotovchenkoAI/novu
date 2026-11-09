@@ -69,7 +69,9 @@ jobs:
           PLATFORM: ${{ matrix.arch.platform }}
           ARCH: ${{ matrix.arch.name }}
         run: |
+          # Runner запускает с -o pipefail, а pnpm-context кончает кодом 13; важен код сборки.
           set -eu
+          set +o pipefail
           image="${IMAGE_PREFIX}-${SERVICE}"
           common=(
             --platform "$PLATFORM"
@@ -84,7 +86,6 @@ jobs:
           if [ "$SERVICE" = dashboard ]; then
             docker buildx build "${common[@]}" --build-arg VITE_SELF_HOSTED=true -f apps/dashboard/dockerfile .
           else
-            # pnpm-context кончает кодом 13 (незавершённый await в конце потока), важен код сборки.
             pnpm --silent --workspace-root pnpm-context -- "apps/${SERVICE}/Dockerfile" \
               | docker buildx build "${common[@]}" --build-arg "PACKAGE_PATH=apps/${SERVICE}" -
           fi
@@ -101,6 +102,7 @@ jobs:
           ARCH: ${{ matrix.arch.name }}
         run: |
           set -eu
+          set +o pipefail
           export_args=(
             --platform linux/arm64
             --cache-from "type=gha,scope=${SERVICE}-${ARCH}"

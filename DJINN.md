@@ -73,8 +73,8 @@
 | `apps/worker/src/app/workflow/usecases/send-message/smtp-login-gate.spec.ts` | +73 | -0 |
 | `packages/providers/src/lib/chat/telegram/telegram.provider.spec.ts` | +21 | -0 |
 
-## Сборка: 1 файл, +177 / -0 строк
+## Сборка: 1 файл, +179 / -0 строк
 
 | Файл | Добавлено | Удалено |
 |---|---|---|
-| `.github/workflows/publish-djinn-images.yml` | +177 | -0 |
+| `.github/workflows/publish-djinn-images.yml` | +179 | -0 |
