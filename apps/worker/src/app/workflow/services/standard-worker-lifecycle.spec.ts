@@ -57,7 +57,7 @@ describe('Запись исхода StandardWorker до освобождения
     const job = {
       id: 'job-id',
       data: { _id: 'job-id', _environmentId: 'environment-id', _organizationId: 'organization-id', _userId: 'user-id' },
-      attemptsMade: 0,
+      attemptsMade: 1,
       opts: { attempts: 3 },
       timestamp: Date.now(),
       moveToDelayed: sinon.stub().resolves(),
@@ -85,7 +85,7 @@ describe('Запись исхода StandardWorker до освобождения
   it('ждёт последнюю попытку до отказа и не повторяет запись по failed event', async () => {
     const error = new Error('temporary-provider-failure');
     const state = harness(async () => { throw error; }, true);
-    state.job.attemptsMade = 2;
+    state.job.attemptsMade = 3;
     let settled = false;
     const result = state.process().catch((caught: unknown) => { settled = true; return caught; });
     await Promise.resolve();
@@ -93,19 +93,17 @@ describe('Запись исхода StandardWorker до освобождения
     expect(settled).to.equal(false);
     state.failure.release();
     expect(await result).to.equal(error);
-    state.job.attemptsMade++;
     state.events.emit('failed', state.job, error);
     await Promise.resolve();
     expect(state.writes).to.deep.equal(['failed', 'last-failure']);
   });
 
-  for (const attemptsMade of [0, 1]) {
-    it(`оставляет повторяемую попытку ${attemptsMade + 1} без конечного исхода`, async () => {
+  for (const attemptsMade of [1, 2]) {
+    it(`оставляет повторяемую попытку ${attemptsMade} без конечного исхода`, async () => {
       const error = new Error('temporary-provider-failure');
       const state = harness(async () => { throw error; }, true);
       state.job.attemptsMade = attemptsMade;
       expect(await state.process().catch((caught: unknown) => caught)).to.equal(error);
-      state.job.attemptsMade++;
       state.events.emit('failed', state.job, error);
       await Promise.resolve();
       expect(state.writes).to.deep.equal([]);
@@ -116,7 +114,6 @@ describe('Запись исхода StandardWorker до освобождения
     const error = new Error('permanent-provider-failure');
     const state = harness(async () => { throw error; });
     expect(await state.process().catch((caught: unknown) => caught)).to.equal(error);
-    state.job.attemptsMade++;
     state.events.emit('failed', state.job, error);
     await Promise.resolve();
     expect(state.writes).to.deep.equal(['failed']);
@@ -162,5 +159,21 @@ describe('Запись исхода StandardWorker до освобождения
     expect(state.writes).to.deep.equal([]);
     await sqs(state.job.data, { receiveCount: 3 });
     expect(state.writes).to.deep.equal(['failed', 'last-failure']);
+  });
+
+  it('настоящий Bull moveToFailed не увеличивает attemptsMade после процессора', async () => {
+    for (const attemptsMade of [1, 2, 3]) {
+      const job = Object.create(Job.prototype) as StandardJob;
+      const multi = { saveStacktrace: () => {}, retryJob: () => {}, moveToFinished: () => {}, exec: async () => [[null, 0]] };
+      Object.assign(job, {
+        id: 'job-id',
+        attemptsMade,
+        opts: { attempts: 3 },
+        queue: { client: Promise.resolve({ multi: () => multi }), opts: {} },
+        scripts: { saveStacktraceArgs: () => [], retryJobArgs: () => [], moveToFailedArgs: () => [] },
+      });
+      await job.moveToFailed(new Error('provider-failure'), 'token');
+      expect(job.attemptsMade).to.equal(attemptsMade);
+    }
   });
 });

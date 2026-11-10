@@ -109,8 +109,8 @@ export class StandardWorker extends StandardWorkerService {
         // Обёртка хранилища уже вернула задачу в delayed; окончательного отказа здесь нет.
         if (error instanceof DelayedError) throw error;
 
-        // Bull увеличит attemptsMade в moveToFailed, после возвращения этого процессора.
-        await this.jobHasFailed(job, error as Error, job.attemptsMade + 1);
+        // Bull уже увеличил attemptsMade при выдаче задачи процессору; moveToFailed его не меняет.
+        await this.jobHasFailed(job, error as Error);
         this.finalizedBullJobs.add(job);
 
         throw error;
@@ -261,11 +261,7 @@ export class StandardWorker extends StandardWorkerService {
     }
   }
 
-  private async jobHasFailed(
-    job: Job<IStandardDataDto, unknown, string>,
-    error: Error,
-    attemptsMade = job.attemptsMade
-  ): Promise<boolean> {
+  private async jobHasFailed(job: Job<IStandardDataDto, unknown, string>, error: Error): Promise<boolean> {
     let jobId;
     let hasToBackoff = false;
 
@@ -276,7 +272,7 @@ export class StandardWorker extends StandardWorkerService {
       jobId = minimalData.jobId;
 
       hasToBackoff = this.runJob.shouldBackoff(error);
-      const hasReachedMaxAttempts = attemptsMade >= this.DEFAULT_ATTEMPTS;
+      const hasReachedMaxAttempts = job.attemptsMade >= this.DEFAULT_ATTEMPTS;
       const shouldHandleLastFailedJob = hasToBackoff && hasReachedMaxAttempts;
 
       const shouldBeSetAsFailed = !hasToBackoff || shouldHandleLastFailedJob;
@@ -319,7 +315,7 @@ export class StandardWorker extends StandardWorkerService {
     } catch (anotherError) {
       Logger.error(anotherError, `Failed to set job ${jobId} as failed`, LOG_CONTEXT);
 
-      return hasToBackoff && attemptsMade < this.DEFAULT_ATTEMPTS;
+      return hasToBackoff && job.attemptsMade < this.DEFAULT_ATTEMPTS;
     }
   }
 
