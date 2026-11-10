@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Param, Post, Req, Scope, ServiceUnavailableException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Req, Scope, ServiceUnavailableException } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { FeatureFlagsService, RequirePermissions, ResourceCategory } from '@novu/application-generic';
 import {
@@ -34,6 +34,8 @@ import {
   TriggerEventToAllRequestDto,
 } from './dtos';
 import { CancelDelayed, CancelDelayedCommand } from './usecases/cancel-delayed';
+import { GetTransactionStatusCommand } from './usecases/get-transaction-status/get-transaction-status.command';
+import { GetTransactionStatus } from './usecases/get-transaction-status/get-transaction-status.usecase';
 import { PurgeTransaction } from './usecases/purge-transaction/purge-transaction.usecase';
 import { PurgeTransactionCommand } from './usecases/purge-transaction/purge-transaction.command';
 import { ParseEventRequest, ParseEventRequestMulticastCommand } from './usecases/parse-event-request';
@@ -64,6 +66,7 @@ export class EventsController {
   constructor(
     private cancelDelayedUsecase: CancelDelayed,
     private purgeTransactionUsecase: PurgeTransaction,
+    private getTransactionStatusUsecase: GetTransactionStatus,
     private triggerEventToAll: TriggerEventToAll,
     private sendTestEmail: SendTestEmail,
     private parseEventRequest: ParseEventRequest,
@@ -267,6 +270,22 @@ export class EventsController {
   async cancel(@UserSession() user: UserSessionData, @Param('transactionId') transactionId: string): Promise<boolean> {
     return await this.cancelDelayedUsecase.execute(
       CancelDelayedCommand.create({
+        userId: user._id,
+        environmentId: user.environmentId,
+        organizationId: user.organizationId,
+        transactionId,
+      })
+    );
+  }
+
+  // Djinn: неизвестный запуск или работающая очередь не дают разрешения на очистку.
+  @ExternalApiAccessible()
+  @Get('/trigger/:transactionId/status')
+  @ApiExcludeEndpoint()
+  @RequirePermissions(PermissionsEnum.EVENT_WRITE)
+  async transactionStatus(@UserSession() user: UserSessionData, @Param('transactionId') transactionId: string) {
+    return this.getTransactionStatusUsecase.execute(
+      GetTransactionStatusCommand.create({
         userId: user._id,
         environmentId: user.environmentId,
         organizationId: user.organizationId,
