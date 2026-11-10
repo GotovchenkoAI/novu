@@ -15,7 +15,9 @@ describe('Наблюдение окончания transaction перед очи�
         getJobs: async (states: string[], start: number, end: number) => {
           order.push(name);
           if (unavailableQueue === name) throw new Error('queue-unavailable');
-          return queues[name].filter((entry) => !entry || states.includes((entry as { state?: string }).state ?? 'active')).slice(start, end + 1);
+          return queues[name]
+            .filter((entry) => !entry || states.includes((entry as { state?: string }).state ?? 'active'))
+            .slice(start, end + 1);
         },
       },
     });
@@ -33,14 +35,34 @@ describe('Наблюдение окончания transaction перед очи�
       queue('standard') as never,
       { isConfigured: () => configuredSqs } as never
     );
-    const execute = () => usecase.execute({ environmentId: 'environment-id', transactionId: 'transaction-id' } as never);
+    const execute = () =>
+      usecase.execute({ environmentId: 'environment-id', transactionId: 'transaction-id' } as never);
 
-    return { execute, queues, stored, order, configureSqs: () => { configuredSqs = true; }, failStore: () => { storeFailed = true; }, failQueue: (name: string) => { unavailableQueue = name; } };
+    return {
+      execute,
+      queues,
+      stored,
+      order,
+      configureSqs: () => {
+        configuredSqs = true;
+      },
+      failStore: () => {
+        storeFailed = true;
+      },
+      failQueue: (name: string) => {
+        unavailableQueue = name;
+      },
+    };
   }
 
   it('даёт разрешение для известной закрытой цепочки после чтения производителей и очереди шагов', async () => {
     const state = harness();
-    state.stored.push(...[JobStatusEnum.FAILED, JobStatusEnum.CANCELED, JobStatusEnum.SKIPPED].map((status) => ({ _id: status, status })));
+    state.stored.push(
+      ...[JobStatusEnum.FAILED, JobStatusEnum.CANCELED, JobStatusEnum.SKIPPED].map((status) => ({
+        _id: status,
+        status,
+      }))
+    );
     expect(await state.execute()).to.deep.equal({ transactionId: 'transaction-id', terminal: true });
     expect(state.order).to.deep.equal(['workflow', 'subscriber', 'mongo', 'standard']);
   });
@@ -51,7 +73,13 @@ describe('Наблюдение окончания transaction перед очи�
     expect((await state.execute()).terminal).to.equal(false);
   });
 
-  for (const status of [JobStatusEnum.PENDING, JobStatusEnum.QUEUED, JobStatusEnum.RUNNING, JobStatusEnum.DELAYED, JobStatusEnum.MERGED]) {
+  for (const status of [
+    JobStatusEnum.PENDING,
+    JobStatusEnum.QUEUED,
+    JobStatusEnum.RUNNING,
+    JobStatusEnum.DELAYED,
+    JobStatusEnum.MERGED,
+  ]) {
     it(`не закрывает цепочку в состоянии ${status}`, async () => {
       const state = harness();
       state.stored[0].status = status;
@@ -62,9 +90,10 @@ describe('Наблюдение окончания transaction перед очи�
   for (const stage of ['workflow', 'subscriber', 'standard']) {
     it(`видит взятый шаг ${stage}, включая старое schedule extension`, async () => {
       const state = harness();
-      state.queues[stage] = stage === 'standard'
-        ? [{ id: 'job-id-ext1', name: 'job-id', data: { _environmentId: 'environment-id', _id: 'job-id' } }]
-        : [{ name: 'transaction-id', data: { environmentId: 'environment-id' } }];
+      state.queues[stage] =
+        stage === 'standard'
+          ? [{ id: 'job-id-ext1', name: 'job-id', data: { _environmentId: 'environment-id', _id: 'job-id' } }]
+          : [{ name: 'transaction-id', data: { environmentId: 'environment-id' } }];
       expect((await state.execute()).terminal).to.equal(false);
     });
 
@@ -78,14 +107,18 @@ describe('Наблюдение окончания transaction перед очи�
   for (const queuedState of ['waiting', 'active', 'delayed', 'paused', 'prioritized', 'waiting-children']) {
     it(`ожидает задачу в состоянии ${queuedState}`, async () => {
       const state = harness();
-      state.queues.workflow = [{ name: 'transaction-id', state: queuedState, data: { environmentId: 'environment-id' } }];
+      state.queues.workflow = [
+        { name: 'transaction-id', state: queuedState, data: { environmentId: 'environment-id' } },
+      ];
       expect((await state.execute()).terminal).to.equal(false);
     });
   }
 
   it('не закрывает усечённую Mongo-цепочку', async () => {
     const state = harness();
-    state.stored.push(...Array.from({ length: 1000 }, (_, index) => ({ _id: `job-${index}`, status: JobStatusEnum.COMPLETED })));
+    state.stored.push(
+      ...Array.from({ length: 1000 }, (_, index) => ({ _id: `job-${index}`, status: JobStatusEnum.COMPLETED }))
+    );
     expect((await state.execute()).terminal).to.equal(false);
   });
 

@@ -11,7 +11,12 @@ import { JobTopicNameEnum } from '@novu/shared';
 import { GetTransactionStatusCommand } from './get-transaction-status.command';
 
 const OBSERVATION_LIMIT = 1000;
-const CLOSED_STATUSES = new Set([JobStatusEnum.COMPLETED, JobStatusEnum.FAILED, JobStatusEnum.CANCELED, JobStatusEnum.SKIPPED]);
+const CLOSED_STATUSES = new Set([
+  JobStatusEnum.COMPLETED,
+  JobStatusEnum.FAILED,
+  JobStatusEnum.CANCELED,
+  JobStatusEnum.SKIPPED,
+]);
 
 /** Наблюдение очередей, а не запрет позднего писателя: неизвестный запуск остаётся незавершённым. */
 @Injectable()
@@ -45,11 +50,10 @@ export class GetTransactionStatus {
     if (!(await this.queueIsIdle(this.workflowQueueService.queue, unrelatedProducer))) return false;
     if (!(await this.queueIsIdle(this.subscriberProcessQueueService.queue, unrelatedProducer))) return false;
 
-    const jobs = await this.jobRepository.find(
-      { _environmentId: environmentId, transactionId },
-      '_id status',
-      { limit: OBSERVATION_LIMIT + 1, readPreference: 'primary' }
-    );
+    const jobs = await this.jobRepository.find({ _environmentId: environmentId, transactionId }, '_id status', {
+      limit: OBSERVATION_LIMIT + 1,
+      readPreference: 'primary',
+    });
     if (jobs.length === 0 || jobs.length > OBSERVATION_LIMIT) return false;
     if (jobs.some((job) => typeof job._id !== 'string' || !CLOSED_STATUSES.has(job.status))) return false;
 
@@ -57,7 +61,9 @@ export class GetTransactionStatus {
 
     return this.queueIsIdle(
       this.standardQueueService.queue,
-      (job) => (!ids.has(job.name) && !ids.has(job.data?._id)) || this.otherEnvironment(job.data?._environmentId, environmentId)
+      (job) =>
+        (!ids.has(job.name) && !ids.has(job.data?._id)) ||
+        this.otherEnvironment(job.data?._environmentId, environmentId)
     );
   }
 

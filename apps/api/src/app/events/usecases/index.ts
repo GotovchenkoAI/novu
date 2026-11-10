@@ -6,4 +6,12 @@ import { PurgeTransaction } from './purge-transaction/purge-transaction.usecase'
 import { SendTestEmail } from './send-test-email';
 import { TriggerEventToAll } from './trigger-event-to-all';
 
-export const USE_CASES = [CancelDelayed, TriggerEventToAll, ParseEventRequest, ProcessBulkTrigger, SendTestEmail, PurgeTransaction, GetTransactionStatus];
+export const USE_CASES = [
+  CancelDelayed,
+  TriggerEventToAll,
+  ParseEventRequest,
+  ProcessBulkTrigger,
+  SendTestEmail,
+  PurgeTransaction,
+  GetTransactionStatus,
+];
