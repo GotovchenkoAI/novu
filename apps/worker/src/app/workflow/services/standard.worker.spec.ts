@@ -175,7 +175,6 @@ describe('Standard Worker', () => {
 
     expect(standardWorker.DEFAULT_ATTEMPTS).to.eql(3);
     expect(standardWorker.bullMqWorker).to.deep.include({
-      _eventsCount: 2,
       _maxListeners: undefined,
       name: 'standard',
     });

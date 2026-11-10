@@ -1,6 +1,7 @@
 import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   BullMqService,
+  DelayedError,
   FeatureFlagsService,
   getStandardWorkerOptions,
   IStandardDataDto,
@@ -13,6 +14,7 @@ import {
   storage,
   UnrecoverableError,
   WorkerOptions,
+  WorkerProcessor,
   WorkflowInMemoryProviderService,
 } from '@novu/application-generic';
 import { CommunityOrganizationRepository, JobRepository } from '@novu/dal';
@@ -33,6 +35,8 @@ const LOG_CONTEXT = 'StandardWorker';
 
 @Injectable()
 export class StandardWorker extends StandardWorkerService {
+  private readonly finalizedBullJobs = new WeakSet<Job>();
+
   constructor(
     private handleLastFailedJob: HandleLastFailedJob,
     private runJob: RunJob,
@@ -52,11 +56,8 @@ export class StandardWorker extends StandardWorkerService {
     this.initWorker(this.getWorkerProcessor(), this.getWorkerOptions(), true);
 
     this.bullMqWorker.on('failed', async (job: Job<IStandardDataDto, void, string>, error: Error): Promise<void> => {
-      await this.jobHasFailed(job, error);
-    });
-
-    this.bullMqWorker.on('completed', async (job: Job<IStandardDataDto, void, string>): Promise<void> => {
-      await this.jobHasCompleted(job);
+      // Bull может окончательно снять stalled-задачу без вызова процессора. Этот исход сохраняем.
+      if (!this.finalizedBullJobs.has(job)) await this.jobHasFailed(job, error);
     });
 
     this.setSqsCompletedHandler(async (job: Job<IStandardDataDto, void, string>): Promise<void> => {
@@ -88,6 +89,33 @@ export class StandardWorker extends StandardWorkerService {
     });
 
     this.startSqsConsumer();
+  }
+
+  public override createWorker(processor: WorkerProcessor, options: WorkerOptions): void {
+    if (typeof processor !== 'function') {
+      super.createWorker(processor, options);
+
+      return;
+    }
+
+    // Только Bull: SQS ждёт свои callbacks в WorkerBaseService и не должен выполнять их дважды.
+    super.createWorker(async (job, token) => {
+      try {
+        const result = await processor(job, token as string);
+        await this.jobHasCompleted(job);
+
+        return result;
+      } catch (error) {
+        // Обёртка хранилища уже вернула задачу в delayed; окончательного отказа здесь нет.
+        if (error instanceof DelayedError) throw error;
+
+        // Bull увеличит attemptsMade в moveToFailed, после возвращения этого процессора.
+        await this.jobHasFailed(job, error as Error, job.attemptsMade + 1);
+        this.finalizedBullJobs.add(job);
+
+        throw error;
+      }
+    }, options);
   }
 
   private getWorkerOptions(): WorkerOptions {
@@ -205,7 +233,7 @@ export class StandardWorker extends StandardWorkerService {
     };
   }
 
-  private async jobHasCompleted(job: Job<IStandardDataDto, void, string>): Promise<void> {
+  private async jobHasCompleted(job: Job<IStandardDataDto, unknown, string>): Promise<void> {
     let jobId;
 
     try {
@@ -233,7 +261,11 @@ export class StandardWorker extends StandardWorkerService {
     }
   }
 
-  private async jobHasFailed(job: Job<IStandardDataDto, void, string>, error: Error): Promise<boolean> {
+  private async jobHasFailed(
+    job: Job<IStandardDataDto, unknown, string>,
+    error: Error,
+    attemptsMade = job.attemptsMade
+  ): Promise<boolean> {
     let jobId;
     let hasToBackoff = false;
 
@@ -244,7 +276,7 @@ export class StandardWorker extends StandardWorkerService {
       jobId = minimalData.jobId;
 
       hasToBackoff = this.runJob.shouldBackoff(error);
-      const hasReachedMaxAttempts = job.attemptsMade >= this.DEFAULT_ATTEMPTS;
+      const hasReachedMaxAttempts = attemptsMade >= this.DEFAULT_ATTEMPTS;
       const shouldHandleLastFailedJob = hasToBackoff && hasReachedMaxAttempts;
 
       const shouldBeSetAsFailed = !hasToBackoff || shouldHandleLastFailedJob;
@@ -287,7 +319,7 @@ export class StandardWorker extends StandardWorkerService {
     } catch (anotherError) {
       Logger.error(anotherError, `Failed to set job ${jobId} as failed`, LOG_CONTEXT);
 
-      return hasToBackoff && job.attemptsMade < this.DEFAULT_ATTEMPTS;
+      return hasToBackoff && attemptsMade < this.DEFAULT_ATTEMPTS;
     }
   }
 
