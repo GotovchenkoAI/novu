@@ -114,6 +114,26 @@ describe('Наблюдение окончания transaction перед очи�
     });
   }
 
+  for (const extension of [1, 2, 100]) {
+    it(`ожидает старое extension ${extension} без data`, async () => {
+      const state = harness();
+      state.queues.standard = [{ name: `job-id-ext${extension}` }];
+      expect((await state.execute()).terminal).to.equal(false);
+    });
+
+    it(`ожидает старое extension ${extension} с неизвестной формой data`, async () => {
+      const state = harness();
+      state.queues.standard = [{ name: `job-id-ext${extension}`, data: { unexpected: true } }];
+      expect((await state.execute()).terminal).to.equal(false);
+    });
+  }
+
+  it('не принимает посторонний extension за шаг этой цепочки', async () => {
+    const state = harness();
+    state.queues.standard = [{ name: 'other-id-ext100' }];
+    expect((await state.execute()).terminal).to.equal(true);
+  });
+
   it('не закрывает усечённую Mongo-цепочку', async () => {
     const state = harness();
     state.stored.push(

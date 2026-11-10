@@ -62,7 +62,7 @@ export class GetTransactionStatus {
     return this.queueIsIdle(
       this.standardQueueService.queue,
       (job) =>
-        (!ids.has(job.name) && !ids.has(job.data?._id)) ||
+        (!ids.has(job.name.replace(/-ext\d+$/, '')) && !ids.has(job.data?._id)) ||
         this.otherEnvironment(job.data?._environmentId, environmentId)
     );
   }
