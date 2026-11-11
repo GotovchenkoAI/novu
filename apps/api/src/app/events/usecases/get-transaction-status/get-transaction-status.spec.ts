@@ -104,7 +104,8 @@ describe('Наблюдение окончания transaction перед очи�
     });
   }
 
-  for (const queuedState of ['waiting', 'active', 'delayed', 'paused', 'prioritized', 'waiting-children']) {
+  // Состояния очереди BullMQ 3.10.4: приоритетные задачи лежат в `waiting`, отдельного `prioritized` нет.
+  for (const queuedState of ['waiting', 'active', 'delayed', 'paused', 'waiting-children']) {
     it(`ожидает задачу в состоянии ${queuedState}`, async () => {
       const state = harness();
       state.queues.workflow = [

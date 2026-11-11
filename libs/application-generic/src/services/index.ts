@@ -4,6 +4,7 @@ export * from './auth';
 export {
   BullMqConnectionOptions,
   BullMqService,
+  DelayedError,
   Job,
   JobsOptions,
   Processor,

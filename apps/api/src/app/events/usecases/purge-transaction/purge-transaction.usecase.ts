@@ -62,7 +62,9 @@ export class PurgeTransaction {
 
   /** Запуск ещё в очереди: в его данных лежат `payload` и `overrides`. Взятый воркером не снимается. */
   private async removeQueued(queue: unknown, transactionId: string): Promise<void> {
-    const waiting = await (queue as NamedQueue).getJobs(['waiting', 'delayed', 'paused', 'prioritized']);
+    // BullMQ 3.10.4: состояния `prioritized` нет (оно появилось в 4.0) — задачи с приоритетом лежат
+    // в списке ожидания и попадают сюда через `waiting`.
+    const waiting = await (queue as NamedQueue).getJobs(['waiting', 'delayed', 'paused']);
 
     await Promise.all(
       waiting.filter((job) => job?.name === transactionId).map((job) => job.remove().catch(() => undefined))

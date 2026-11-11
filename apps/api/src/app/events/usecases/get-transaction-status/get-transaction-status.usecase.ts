@@ -72,8 +72,10 @@ export class GetTransactionStatus {
   }
 
   private async queueIsIdle(queue: WorkflowQueueService['queue'], unrelated: (job: Job) => boolean): Promise<boolean> {
+    // BullMQ 3.10.4: отдельного состояния `prioritized` нет (оно появилось в 4.0) — задачи с
+    // приоритетом лежат в списке ожидания, и их покрывает `waiting`.
     const jobs = await queue.getJobs(
-      ['waiting', 'active', 'delayed', 'paused', 'prioritized', 'waiting-children'],
+      ['waiting', 'active', 'delayed', 'paused', 'waiting-children'],
       0,
       OBSERVATION_LIMIT
     );
